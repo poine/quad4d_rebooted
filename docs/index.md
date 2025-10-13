@@ -16,4 +16,4 @@ $$
 
   * [cvs](https://github.com/poine/quad4d_rebooted/blob/main/outputs/000_back_and_forth.csv)
 
-  <img src="https://github.com/poine/quad4d_rebooted/blob/main/outputs/000_back_and_forth_flat_out.png" width="800" height="240" title="flat output">
+  <img src="https://github.com/poine/quad4d_rebooted/blob/main/outputs/000_back_and_forth_flat_out.png?raw=true" width="800" height="240" title="flat output">
