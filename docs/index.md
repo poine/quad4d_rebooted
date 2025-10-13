@@ -12,7 +12,7 @@ $$
 # Documentation
 
 
-* 0: smooth back and forth
+### 0: Smooth back and forth
 
 	This is a composite trajectory made using minsnap polynomials
 
@@ -25,7 +25,7 @@ $$
 
 
 
-* 1: circle with intro
+### 1: Circle with intro
 
   A circle at constant speed. The intro and outro are made using minsnap polynomials.
   
@@ -36,7 +36,7 @@ $$
 
   <img src="graphics/001_circle_with_intro_slow.webp" width="800">
 
-* 3: sphere
+### 3: Sphere
 
  Analytical trajectory, rotating circle
 
@@ -46,7 +46,7 @@ $$
   <img src="graphics/003_sphere.webp" width="800">
 
 
-* 4: spatialy indexed circle
+### 4: Spatialy indexed circle
 
   Stop-stop trajectory on a geometric circle. Dynamic is minsnap polynomials
   
@@ -55,7 +55,7 @@ $$
   
   <img src="graphics/004_space_indexed_circle1.webp" width="800">
 
-* 5: spatialy indexed slalon
+### 5: Spatialy indexed slalon
 
   Stop-stop slalon trajectory. Geometry is described using splines interpolating waypoints, dynamic using minsnap polynomials.
 
