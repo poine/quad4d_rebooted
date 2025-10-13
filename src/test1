@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+import sys, os, numpy as np, matplotlib.pyplot as plt
+
+import pat3
+import pat3.vehicles.rotorcraft.multirotor_trajectory as trj
+import pat3.vehicles.rotorcraft.multirotor_trajectory_factory as trj_fact
+import pat3.vehicles.rotorcraft.multirotor_fdm as fdm
+import pat3.vehicles.rotorcraft.multirotor_control as ctl
+
+
+def save_output_traj(time, Yc, filename):
+    print(f'writing to {filename}')
+    np.savetxt(filename, np.hstack((time[:,np.newaxis], Yc[:,:,0], Yc[:,:,1], Yc[:,:,2])), delimiter=',',
+               header='time,x(N),y(E),z(D),psi,xd(N),yd(E),zd(D),psid,xdd(N),ydd(E),zdd(D),psidd')
+
+output_dir = '/home/poine/work/quad4d_rebooted/outputs'
+    
+def exp0(): return trj_fact.get('sbf')[0], '000_back_and_forth.csv'
+
+def exp1(): return trj_fact.get('cis')[0], '001_circle_with_intro_slow.csv'
+
+def exp2(): return trj_fact.get('cis2')[0], '002_circle_with_intro_slow_psicst.csv'  
+
+def exp3(): return trj_fact.get('sph0')[0], '003_sphere.csv'
+
+def exp4(): return trj_fact.get('sic1')[0], '004_space_indexed_circle1.csv'
+
+def exp5(): return trj_fact.get('siwp1')[0], '005_space_indexed_waypoints1.csv'
+
+exps = [exp0, exp1, exp2, exp3, exp4, exp5]
+
+
+def process_traj(traj, filename, dt, display=True):
+    time = np.arange(0, traj.duration, dt)
+    Yc = np.zeros((len(time), trj._ylen, trj._nder))
+    for i in range(0, len(time)):
+        Yc[i] = traj.get(time[i])
+    save_output_traj(time, Yc, os.path.join(output_dir, filename))
+    if display:
+        #trj.plot2d(time, Yc)
+        trj.plot(time, Yc)
+        _fdm = fdm.MR_FDM()
+        Xr, Ur = np.zeros((len(time), fdm.sv_size)), np.zeros((len(time), fdm.iv_size))
+        for i in range(0, len(time)):
+            Xr[i], Ur[i], Xd = ctl.DiffFlatness.state_and_cmd_of_flat_output(None, Yc[i], _fdm.P)
+        fig, axes = fdm.plot(time, Xr, window_title="State Trajectory")#, Ur)
+
+
+def main(dt=1./20., which=None):
+    if which is not None:
+        process_traj(*exps[int(which)](), dt, True)
+        plt.show()
+    else:
+        for exp in exps:
+            process_traj(*exp(), dt, False)
+
+    
+if __name__ == "__main__":
+    np.set_printoptions(linewidth=500)
+    which = None if len(sys.argv) < 2 else sys.argv[1]
+    main(which=which)
