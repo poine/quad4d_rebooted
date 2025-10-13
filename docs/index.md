@@ -36,8 +36,24 @@ $$
 
   <img src="graphics/001_circle_with_intro_slow.webp" width="800">
 
+* 3: sphere
+
+ Analytical trajectory, rotating circle
+
+  <img src="graphics/003_sphere.webp" width="800">
 
 
+* 4: spatialy indexed circle
 
+  Stop-stop trajectory on a geometric circle. Dynamic is minsnap
 
-ffmpeg -i /home/poine/2025-10-14\ 00-06-47.mkv -loop 0 /tmp/foo.webp
+  <img src="graphics/004_space_indexed_circle1.webp" width="800">
+
+* 5: spatialy indexed slalon
+
+  Stop-stop slalon trajectory. Geometry is described using splines interpolating waypoints, dynamic using minsnap.
+
+  <img src="graphics/005_space_indexed_waypoints1.webp" width="800">
+  
+  
+<!-- ffmpeg -i /home/poine/2025-10-14\ 00-06-47.mkv -loop 0 /tmp/foo.webp -->
