@@ -65,4 +65,7 @@ $$
   <img src="graphics/005_space_indexed_waypoints1.webp" width="800">
   
   
+### 6: Multivehicle?
+  <img src="graphics/006_multivehicle.webp" width="800">
+  
 <!-- ffmpeg -i /home/poine/2025-10-14\ 00-06-47.mkv -loop 0 /tmp/foo.webp -->
