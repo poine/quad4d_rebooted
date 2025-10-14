@@ -8,39 +8,44 @@ import pat3.vehicles.rotorcraft.multirotor_fdm as fdm
 import pat3.vehicles.rotorcraft.multirotor_control as ctl
 
 
-def save_output_traj(time, Yc, filename):
-    print(f'writing to {filename}')
+def save_traj_as_csv(time, Yc, filename):
+    print(f'writing cvs to {filename}')
     np.savetxt(filename, np.hstack((time[:,np.newaxis], Yc[:,:,0], Yc[:,:,1], Yc[:,:,2])), delimiter=',',
                header='time,x(N),y(E),z(D),psi,xd(N),yd(E),zd(D),psid,xdd(N),ydd(E),zdd(D),psidd')
 
+def save_traj_as_binary(time, Yc, filename):
+    import struct
+    print(f'writing binary to {filename}')
+    vals = np.hstack((time[:,np.newaxis], Yc[:,:,0], Yc[:,:,1], Yc[:,:,2])).astype(np.float32)
+    with open(filename, "wb") as f:
+        vals.tofile(f)
+        #vals.byteswap().tofile(f)
+    
 output_dir = '/home/poine/work/quad4d_rebooted/outputs'
     
-def exp0(): return trj_fact.get('sbf')[0], '000_back_and_forth'
+def exp0(): return trj_fact.get('sbf')[0],   '000_back_and_forth'
 
-def exp1(): return trj_fact.get('cis')[0], '001_circle_with_intro_slow'
+def exp1(): return trj_fact.get('cis')[0],   '001_circle_with_intro_slow'
 
-def exp2(): return trj_fact.get('cis2')[0], '002_circle_with_intro_slow_psicst'  
+def exp2(): return trj_fact.get('cis2')[0],  '002_circle_with_intro_slow_psicst'  
 
-def exp3(): return trj_fact.get('sph0')[0], '003_sphere'
+def exp3(): return trj_fact.get('sph0')[0],  '003_sphere'
 
-def exp4(): return trj_fact.get('sic1')[0], '004_space_indexed_circle1'
+def exp4(): return trj_fact.get('sic1')[0],  '004_space_indexed_circle1'
 
 def exp5(): return trj_fact.get('siwp1')[0], '005_space_indexed_waypoints1'
 
 exps = [exp0, exp1, exp2, exp3, exp4, exp5]
-
 
 def process_traj(traj, filename, dt, display=True):
     time = np.arange(0, traj.duration, dt)
     Yc = np.zeros((len(time), trj._ylen, trj._nder))
     for i in range(0, len(time)):
         Yc[i] = traj.get(time[i])
-    save_output_traj(time, Yc, os.path.join(output_dir, filename)+'.csv')
+    save_traj_as_csv(time, Yc, os.path.join(output_dir, filename)+'.csv')
+    save_traj_as_binary(time, Yc, os.path.join(output_dir, filename)+'.bin')
     trj.plot(time, Yc)
     if not display: plt.savefig(os.path.join(output_dir, filename)+'_flat_out.png')
-    #if display:
-    #trj.plot2d(time, Yc)
-    #trj.plot(time, Yc)
     _fdm = fdm.MR_FDM()
     Xr, Ur = np.zeros((len(time), fdm.sv_size)), np.zeros((len(time), fdm.iv_size))
     for i in range(0, len(time)):
