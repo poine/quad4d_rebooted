@@ -14,7 +14,6 @@ def save_traj_as_csv(time, Yc, filename):
                header='time,x(N),y(E),z(D),psi,xd(N),yd(E),zd(D),psid,xdd(N),ydd(E),zdd(D),psidd')
 
 def save_traj_as_binary(time, Yc, filename):
-    import struct
     print(f'writing binary to {filename}')
     vals = np.hstack((time[:,np.newaxis], Yc[:,:,0], Yc[:,:,1], Yc[:,:,2])).astype(np.float32)
     with open(filename, "wb") as f:
