@@ -3,6 +3,8 @@ title: Quad4D rebooted
 layout: default
 ---
 
+<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+
 <!-- <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script> -->
 
 <!-- <script type="math/tex; mode=display"> -->
@@ -18,7 +20,6 @@ layout: default
 <!--    \def\rddots{\cdot^{\cdot^{\cdot}}} -->
 <!--    \newcommand{\jac}[3]{\frac{\partial{#1}}{\partial{#2}}|_{#3}} % Jacobian -->
 <!-- </script> -->
-
 
 
 ## 1: Trajectoires
