@@ -3,21 +3,21 @@ title: Quad4D rebooted
 layout: default
 ---
 
-<script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
+<!-- <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script> -->
 
-<script type="math/tex; mode=display">
-   \newcommand{\vect}[1]{\underline{#1}}
-   \newcommand{\mat}[1]{\mathbf{#1}}
-   \newcommand{\eye}[0]{\mathbf{I}}
-   \newcommand{\est}[1]{\hat{#1}}
-   \newcommand{\err}[1]{\tilde{#1}}
-   \newcommand{\pd}[2]{\frac{\partial{#1}}{\partial{#2}}}
-   \newcommand{\transp}[1]{#1^{T}}
-   \newcommand{\inv}[1]{#1^{-1}}
-   \newcommand{\norm}[1]{|{#1}|}
-   \def\rddots{\cdot^{\cdot^{\cdot}}}
-   \newcommand{\jac}[3]{\frac{\partial{#1}}{\partial{#2}}|_{#3}} % Jacobian
-</script>
+<!-- <script type="math/tex; mode=display"> -->
+<!--    \newcommand{\vect}[1]{\underline{#1}} -->
+<!--    \newcommand{\mat}[1]{\mathbf{#1}} -->
+<!--    \newcommand{\eye}[0]{\mathbf{I}} -->
+<!--    \newcommand{\est}[1]{\hat{#1}} -->
+<!--    \newcommand{\err}[1]{\tilde{#1}} -->
+<!--    \newcommand{\pd}[2]{\frac{\partial{#1}}{\partial{#2}}} -->
+<!--    \newcommand{\transp}[1]{#1^{T}} -->
+<!--    \newcommand{\inv}[1]{#1^{-1}} -->
+<!--    \newcommand{\norm}[1]{|{#1}|} -->
+<!--    \def\rddots{\cdot^{\cdot^{\cdot}}} -->
+<!--    \newcommand{\jac}[3]{\frac{\partial{#1}}{\partial{#2}}|_{#3}} % Jacobian -->
+<!-- </script> -->
 
 
 
@@ -110,7 +110,7 @@ Oval
 
 
 
-## Space Indexed Trajectories
+## 2: Space Indexed Trajectories
 
 Il s'agit ici de découpler la géometrie et la dynamique d'une trajectoire.
 
@@ -120,9 +120,11 @@ $$
 
 
 
-## Platitude différentielle 
+## 3: Platitude différentielle 
 
+{%comment%}
 La propriété de `platitude differentielle` permet d'exprimer l'état et l'entrée d'un système dynamique comme fonction d'un nombre de dérivées temporelles de sa sortie.
+{%endcomment%}
 
 
 $$
@@ -148,18 +150,21 @@ $$
 \end{align}
 $$
 
-$S$ est dit \emph{différentiellement plat} si et seulement si il existe une sortie $\vect{Y}=g(\vect{X},\vect{U})$ de dimension $m$, appelée \emph{sortie plate}, deux entiers $r$ et $s$ et des applications $\Psi : X \times (\mathbb{R}^n)^{s+1} \rightarrow \mathbb{R}^m$, de rang $m$ dans un ouvert convenable, et $(\phi_0, \phi_1) : \mathbb{R}^{(m+2)r} \rightarrow \mathbb{R}^n \times \mathbb{R}^m$, de rang $n+m$ dans un ouvert convenable, tel que $\vect{Y} = \psi(\vect{X}, \vect{U}, \dots, \vect{U}^{(s)})$
- $\vect{X} = \phi_0(\vect{Y},\dots, \vect{Y}^{(r)})$ et $\vect{U} = \phi_1(\vect{Y},\dots, \vect{Y}^{(r+1)})$, l'équation $\dot{\phi}_0 = f(\phi_0, \phi_1)$ étant identiquement vérifiée.
-\end{mydef}
+$S$ est dit `différentiellement plat` si et seulement si il existe une sortie $$\vect{Y}=g(\vect{X},\vect{U})$$ de dimension $$m$$, appelée `sortie plate`, deux entiers $$r$$ et $$s$$ et des applications $$\Psi : X \times (\mathbb{R}^n)^{s+1} \rightarrow \mathbb{R}^m$$, de rang $$m$$ dans un ouvert convenable, et $$(\phi_0, \phi_1) : \mathbb{R}^{(m+2)r} \rightarrow \mathbb{R}^n \times \mathbb{R}^m$$, de rang $$n+m$$ dans un ouvert convenable, tel que $$\vect{Y} = \psi(\vect{X}, \vect{U}, \dots, \vect{U}^{(s)})$$
+ $$\vect{X} = \phi_0(\vect{Y},\dots, \vect{Y}^{(r)})$$ et $$\vect{U} = \phi_1(\vect{Y},\dots, \vect{Y}^{(r+1)})$$, l'équation $$\dot{\phi}_0 = f(\phi_0, \phi_1)$$ étant identiquement vérifiée.
 
-Le système $S$ est dit \emph{Lie-Bäcklund} équivalent au système trivial suivant, où $\vect{v}$ est une nouvelle entrée :
+
+Le système $S$ est dit `Lie-Bäcklund` équivalent au système trivial suivant, où $$\vect{v}$$ est une nouvelle entrée :
+
+$$
 \begin{equation}
 \vect{Y}^{(r+1)} = \vect{v}
 \end{equation}
+$$
 
-La propriété de platitude différentielle exprime que l'on est en mesure d'obtenir toutes les variables du système, c'est-à-dire le vecteur d'état ainsi que le vecteur de commande, en fonction de la sortie plate et d'un nombre fini de ses dérivées temporelles. Par conséquent, toute trajectoire $t \rightarrow (\vect{X}(t), \vect{U}(t))$ du système $(S)$ est l'image d'une trajectoire $t \rightarrow (\vect{Y}(t), \dots, \vect{Y}^{(r+1)}(t))$ engendrée par la sortie plate et un nombre fini de ses dérivées temporelles.
+La propriété de platitude différentielle exprime que l'on est en mesure d'obtenir toutes les variables du système, c'est-à-dire le vecteur d'état ainsi que le vecteur de commande, en fonction de la sortie plate et d'un nombre fini de ses dérivées temporelles. Par conséquent, toute trajectoire $$t \rightarrow (\vect{X}(t), \vect{U}(t))$$ du système $$(S)$$ est l'image d'une trajectoire $$t \rightarrow (\vect{Y}(t), \dots, \vect{Y}^{(r+1)}(t))$$ engendrée par la sortie plate et un nombre fini de ses dérivées temporelles.
 
-Il n'y a pas unicité des sorties plates. Par exemple, \cite{levine_2004} montre que si $(y_1, y_2)$ est une sortie plate d'un système à deux entrées, alors $(z_1, z_2) = (y_1+y_2^k, y_2)$ est aussi une sortie plate pour tout entier $k$. En revanche, certaines sorties plates pourront avoir un sens physique et un objectif de commande pourra être de faire suivre aux sortie plates une certaine trajectoire, alors que d'autres sorties plates pourront n'avoir aucun sens physiquement interprétable. 
+Il n'y a pas unicité des sorties plates. Par exemple, \cite{levine_2004} montre que si $$(y_1, y_2)$$ est une sortie plate d'un système à deux entrées, alors $$(z_1, z_2) = (y_1+y_2^k, y_2)$$ est aussi une sortie plate pour tout entier $$k$$. En revanche, certaines sorties plates pourront avoir un sens physique et un objectif de commande pourra être de faire suivre aux sortie plates une certaine trajectoire, alors que d'autres sorties plates pourront n'avoir aucun sens physiquement interprétable. 
 
 
 
