@@ -11,6 +11,8 @@ $$
 
 # Documentation
 
+[trajectoires](trajectories)
+
 
 ### 0: Smooth back and forth
 

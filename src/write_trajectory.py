@@ -26,7 +26,7 @@ def exp0(): return trj_fact.get('sbf')[0],   '000_back_and_forth'
 
 def exp1(): return trj_fact.get('cis')[0],   '001_circle_with_intro_slow'
 
-def exp2(): return trj_fact.get('cis2')[0],  '002_circle_with_intro_slow_psicst'  
+def exp2(): return trj_fact.get('q4d_dnt2')[0],  '002_donut_with_intro'  
 
 def exp3(): return trj_fact.get('sph0')[0],  '003_sphere'
 
