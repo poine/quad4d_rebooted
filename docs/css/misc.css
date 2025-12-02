@@ -1,0 +1,52 @@
+.exemple {
+  background: rgb(189, 215, 247);
+}
+
+.btn_exemple {
+    background-color: rgb(200, 200, 200);
+}
+.hint {
+  background: rgb(189, 215, 247);
+  color: Indigo;
+  border:1px solid black;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  width: 100%;
+  display: block;
+  padding: 15px 15px 15px 20px;
+  display: none;
+}
+.correction {
+  background: rgb(189, 215, 247);
+  color: Indigo;
+  border:1px solid black;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  width: 100%;
+  display: block;
+  padding: 15px 15px 15px 20px;
+  display: none;
+}
+.button {
+    background-color: rgb(189, 215, 247);
+    border: 1px solid black;
+    border-radius: 8px;
+    color: Indigo;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+}
+
+
+.center {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 50%;
+}

@@ -28,10 +28,29 @@ def demo_poly():
     traj = trj.SmoothLine(Y00=Y0, Y10=Y1, duration=2.)
     demo(traj, 'Poly', '/tmp/demo_poly.png')
 
+def demo_composite():
+    l, r, v, z = 2., 1., 2, -1.
+    c1, c2 = np.array([-l, 0, z]), np.array([l, 0, z])
+    p1, p2 = np.array([-l, -r, z]), np.array([l, -r, z])
+    p3, p4 = np.array([l, r, z]), np.array([-l, r, z])
+    traj = trj.CompositeTraj([trj.Line(p1, p2, v),
+                              trj.Circle(c2, r, v, -np.pi/2, np.pi),
+                              trj.Line(p3, p4, v),
+                              trj.Circle(c1, r, v, np.pi/2, np.pi)])
+    demo(traj, 'Composite', '/tmp/demo_composite.png')
+
+def demo_space_indexed(duration=5., dt=1./200):
+    straj = trj_dev.SpaceCircle(r=1.5, c=[0,1.], alpha0=0, dalpha=2*np.pi)
+    dtraj = trj.AffineOne(1./duration,0., duration)
+    traj = trj_dev.SpaceIndexedTraj(straj, dtraj)
+    demo(traj, 'Space Indexed', '/tmp/demo_space_indexed.png')
+     
 def main(exp=0):
     #demo_line()
     #demo_circle()
-    demo_poly()
+    #demo_poly()
+    #demo_composite()
+    #demo_space_indexed()
     plt.show()
 
     
