@@ -10,11 +10,11 @@ import pat3.vehicles.rotorcraft.multirotor_trajectory_factory as trj_fact
 import pat3.vehicles.rotorcraft.multirotor_fdm as p3_fdm
 import pat3.vehicles.rotorcraft.multirotor_control as p3_ctl
 import pat3.plot_utils as ppu
+import pat3.utils as p3_u
 
 
 import demo_pat_trajectories_utils as dptu
 
-import pat3.utils as p3_u
 
 def demo_poly():
     return trj.SmoothBackAndForth(x0=[0, 0, 0.5, 0], x1=[1, 0, -0.5, np.pi/2]), '', ''
@@ -57,13 +57,12 @@ def demo_waypoints(v=2., dz=0.2):
 def main(dt=0.025):
     #traj, _, _ = demo_poly()
     #traj, _, _ = demo_composite()
-    #traj, _, _ = demo_sphere()
+    traj, _, _ = demo_sphere()
     #traj, _, _ = demo_ref()
-    traj, _, _ = demo_waypoints()
+    #traj, _, _ = demo_waypoints()
     time = np.arange(0, traj.duration, dt)
     Ys = np.array([traj.get(_t) for _t in time])
-    threed_window = dptu.ThreeDWindow(traj)
-    threed_window.update_display(time, Ys)
+    threed_window = dptu.ThreeDWindow()
     if 1:
         Y_window = dptu.OutputWindow()
         Y_window.update_display(time, Ys)
@@ -72,7 +71,8 @@ def main(dt=0.025):
     if 1:
         X_window = dptu.StateWindow()
         X_window.update_display(time, Xs)
-    threed_window.update_state_trajectory(time, Xs)
+    threed_window.add_trajectory(time, Ys, Xs)
+    #threed_window.update_state_trajectory(time, Xs)
     ani = threed_window.animate()
     plt.show()
     

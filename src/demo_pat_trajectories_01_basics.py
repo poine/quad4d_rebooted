@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import math, numpy as np, matplotlib.pyplot as plt
+import sys, math, numpy as np, matplotlib.pyplot as plt
 
 import pat3.vehicles.rotorcraft.multirotor_trajectory as trj
 import pat3.vehicles.rotorcraft.multirotor_trajectory_dev as trj_dev
@@ -46,11 +46,14 @@ def demo_space_indexed(duration=5., dt=1./200):
     demo(traj, 'Space Indexed', '/tmp/demo_space_indexed.png')
      
 def main(exp=0):
-    #demo_line()
-    #demo_circle()
-    #demo_poly()
-    #demo_composite()
-    #demo_space_indexed()
+    if len(sys.argv)>1: exp=int(sys.argv[1])
+    exps= [demo_line,
+           demo_circle,
+           demo_poly,
+           demo_composite,
+           demo_space_indexed,
+           ]
+    exps[exp]()
     plt.show()
 
     

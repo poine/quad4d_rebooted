@@ -8,10 +8,7 @@ import pat3.vehicles.rotorcraft.multirotor_control as p3_ctl
 
 
 def main(dt=0.01):
-    p1, p2, v, psi = np.array([0, 0, 0]), np.array([1, 0, 0]), 2., np.deg2rad(45.)
-    traj = trj.Line(p1, p2, v, psi)
-
-    c, r, v = np.array([0, 0, 1]), 1., 2.  # center, radius, velocity
+    c, r, v = np.array([0, 0, 1]), 1., 3.  # center, radius, velocity
     alpha0, dalpha = 0., 2*np.pi # start angle, angle span
     zt, psit = None, None # height and heading
     traj = trj.Circle(c, r, v, alpha0, dalpha, zt, psit)
