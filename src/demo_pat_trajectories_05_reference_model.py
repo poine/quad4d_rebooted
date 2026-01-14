@@ -35,7 +35,7 @@ def main(dt=0.025):
     Ys = np.array([traj_sp.get(_t) for _t in time])
     Xs = np.array([p3_ctl.DiffFlatness.state_and_cmd_of_flat_output(None, Y, fdm.P)[0] for Y in Ys])
 
-    traj_refmod = traj = trj.RefModelTraj(traj_sp)
+    traj_refmod = traj = trj.RefModelTraj(traj_sp, Y0=np.zeros((4,5)))
     Y2s = np.array([traj_refmod.get(_t) for _t in time])
     X2s = np.array([p3_ctl.DiffFlatness.state_and_cmd_of_flat_output(None, Y, fdm.P)[0] for Y in Y2s])
 
