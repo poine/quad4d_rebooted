@@ -3,7 +3,7 @@
 # (menus and status bar)
 #
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import Qt, QSize #, Signal, Slot
 from PySide6.QtGui import QAction, QIcon, QCursor, Qt, QColor, QPalette
 from PySide6.QtWidgets import (QMainWindow, QMenu, QVBoxLayout,
                                QWidget, QLabel, QToolBar, QDialog,
@@ -11,32 +11,15 @@ from PySide6.QtWidgets import (QMainWindow, QMenu, QVBoxLayout,
                                QPushButton)
 
 import numpy as np
-from matplotlib.figure import Figure
-from matplotlib.patches import Circle
-from matplotlib.backends.backend_qtagg import FigureCanvas
 from functools import partial
+#from functools import partial # Python is such a sad sad language. World is such a sad sad world. There's no such thing as God
+import traceback
 
-import view_chronograms as vc
+import view_chronograms as view_chrono
 import view_geometry as view_geom
 import view_three_d
 import traj_factory
 
-class ColoredWidget(QWidget):
-    def __init__(self, color):
-        super().__init__()
-        self.setAutoFillBackground(True)
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(color))
-        self.setPalette(palette)
-        
-class SiChronoWindow(QWidget):
-    def __init__(self, model, controller):
-        super().__init__()
-        self.setWindowTitle('Output Chronogram')
-        layout = QVBoxLayout()
-        self.si_chrono_view = vc.SpaceIndexedChronogram(model, controller.on_dyn_point_moved)
-        layout.addWidget(self.si_chrono_view)
-        self.setLayout(layout)
 
 class ExportCsvDialog(QDialog):
     def __init__(self, parent):
@@ -48,7 +31,7 @@ class ExportCsvDialog(QDialog):
         layout.addWidget(self.edit)
         layout.addWidget(self.button_export)
         self.setLayout(layout)
-        self.button_export.clicked.connect(parent.on_optimize)
+        self.button_export.clicked.connect(parent.on_export_to_csv)
 
 class OptimizeDialog(QDialog):
     def __init__(self, parent):
@@ -65,25 +48,35 @@ class OptimizeDialog(QDialog):
         self.button_optimize.clicked.connect(parent.on_optimize)
          
 class MainWindow(QMainWindow):
-    def __init__(self, model, cbk, controller):
+    def __init__(self, model, controller):
         super().__init__()
         self.setWindowTitle('Click\'n Fly')
         self.resize(1280, 1024)
-        self.model = model
-        self.controller = controller
+        self.model, self.controller = model, controller
 
         self.threed_view = view_three_d.ThreeDWidget(model)
         self.setCentralWidget(self.threed_view)
         
         self.geometry_window = view_geom.Window(model, controller)
-        self.output_chronogram_window = vc.ChronogramWindow(vc.OutputChronogram, 'Output Chronograms')
+        self.geometry_window.closed.connect(partial(self.on_child_closed, which="geometry")) # that sucks, i need the checkbutton
+        
+        self.output_chronogram_window = view_chrono.ChronogramWindow(view_chrono.OutputChronogram, 'Output Chronograms')
+        self.output_chronogram_window.closed.connect(partial(self.on_child_closed, which="output_chrono"))
+        
         # model and controller not passed to constructor...
-        #self.space_indexed_window = vc.ChronogramWindow(vc.SpaceIndexedChronogram, 'Space Indexed Chronograms')
-        self.space_idx_chronogram_window = SiChronoWindow(self.model, self.controller)
-        self.state_chronogram_window = vc.ChronogramWindow(vc.StateChronogram, 'State Chronograms')
+        #self.space_indexed_window = view_chrono.ChronogramWindow(view_chrono.SpaceIndexedChronogram, 'Space Indexed Chronograms')
+        self.space_idx_chronogram_window = view_chrono.SiChronoWindow(self.model, self.controller)
+        self.space_idx_chronogram_window.closed.connect(partial(self.on_child_closed, which="si_chrono"))
+
+        self.state_chronogram_window = view_chrono.ChronogramWindow(view_chrono.StateChronogram, 'State Chronograms')
+        self.state_chronogram_window.closed.connect(partial(self.on_child_closed, which="state_chrono"))
 
         self.build_window(model, controller)
-
+        self.display_new_trajectory(model)
+        
+    def on_child_closed(self, which):
+        print('#main_window::on_child_closed', which)
+        self.view_actions[which].setChecked(False)
         
     def build_window(self, model, controller):
         toolbar = QToolBar("My main toolbar")
@@ -95,17 +88,21 @@ class MainWindow(QMainWindow):
         #button_animate.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         button_animate.setCheckable(True)
         button_animate.setStatusTip("Show trajecory animation")
-        button_animate.triggered.connect(controller.toggle_play)
+        button_animate.triggered.connect(self.controller.toggle_animate)
         toolbar.addAction(button_animate)
 
         menu = self.menuBar()
+        self.build_trajectory_menu(menu)
+        self.build_view_menu(menu)
+        
+        self.setStatusBar(QStatusBar(self))
 
+    def build_trajectory_menu(self, menu):
         traj_menu = menu.addMenu("&Trajectory")
         traj_submenu = traj_menu.addMenu("Load from factory")  # list trajectories available in factory
-        from functools import partial # Python is such a sad sad language. World is such a sad sad world
         for traj in traj_factory.TrajFactory.trajectories.keys():
             action = QAction(traj, self)
-            action.triggered.connect(partial(controller.load_from_factory, which=traj))
+            action.triggered.connect(partial(self.controller.load_from_factory, which=traj))
             traj_submenu.addAction(action)
         action_export_to_csv = QAction("Export to CSV", self)
         action_export_to_csv.triggered.connect(self.show_csv_export_dialog)
@@ -114,34 +111,59 @@ class MainWindow(QMainWindow):
         action_optimize = QAction("Optimize", self)
         action_optimize.triggered.connect(self.show_optimize_dialog)
         traj_menu.addAction(action_optimize)
+
         
-        
+    def build_view_menu(self, menu):
         view_menu = menu.addMenu("&View")
 
+        three_d_submenu = view_menu.addMenu("3D view")
+
+        action = QAction("Show Grid", self)
+        action.setCheckable(True); action.setChecked(self.threed_view.is_item_visible('grid'))
+        action.triggered.connect(partial(self.on_three_d_set_visible, src=action, what='grid'))
+        three_d_submenu.addAction(action)
+
+        action = QAction("Show Arena Boundaries", self)
+        action.setCheckable(True); action.setChecked(self.threed_view.is_item_visible('arena'))
+        action.triggered.connect(partial(self.on_three_d_set_visible, src=action, what='arena'))
+        three_d_submenu.addAction(action)
+
+        action = QAction("Show Frames", self)
+        action.setCheckable(True); action.setChecked(self.threed_view.is_item_visible('frames'))
+        action.triggered.connect(partial(self.on_three_d_set_visible, src=action, what='frames'))
+        three_d_submenu.addAction(action)
+        
+        self.view_actions = {}
         button_view_geometry = QAction("View Geometry", self)
         button_view_geometry.setCheckable(True)
         button_view_geometry.triggered.connect(self.show_geometry)
+        self.view_actions['geometry'] = button_view_geometry
         view_menu.addAction(button_view_geometry)
 
         button_view_output_chronogram = QAction("View Output Chronogram", self)
         button_view_output_chronogram.setCheckable(True)
         button_view_output_chronogram.triggered.connect(self.show_output_chronogram)
+        self.view_actions['output_chrono'] = button_view_output_chronogram
         view_menu.addAction(button_view_output_chronogram)
 
         button_view_si_chronogram = QAction("View Space Indexed Chronogram", self)
         button_view_si_chronogram.setCheckable(True)
         button_view_si_chronogram.triggered.connect(self.show_si_chronogram)
+        self.view_actions['si_chrono'] = button_view_si_chronogram
         view_menu.addAction(button_view_si_chronogram)
 
         button_view_state_chronogram = QAction("View State Chronogram", self)
         button_view_state_chronogram.setCheckable(True)
         button_view_state_chronogram.triggered.connect(self.show_state_chronogram)
         #button_view_state_chronogram.triggered.connect(lambda s: partial(self.toggle_aux_window, window=self.state_window, state=s))
+        self.view_actions['state_chrono'] = button_view_state_chronogram
         view_menu.addAction(button_view_state_chronogram)
+
         
-        self.setStatusBar(QStatusBar(self))
-
-
+    def on_three_d_set_visible(self, src, what):
+        print(what, src.isChecked())
+        self.threed_view.set_item_visible(what, src.isChecked())
+        
     def show_optimize_dialog(self):
         self.optimize_dialog = OptimizeDialog(self)
         self.optimize_dialog.show()
@@ -161,7 +183,7 @@ class MainWindow(QMainWindow):
     def toggle_aux_window(self, window, state):
         if state:
             window.show()
-            window.update_plot(self.model)
+            window.display_new_trajectory(self.model)
         else: window.hide()
         
     def show_output_chronogram(self, s): self.toggle_aux_window(self.output_chronogram_window, s)
@@ -188,7 +210,17 @@ class MainWindow(QMainWindow):
             w.close()
         event.accept()    
 
+    # display a new trajectory (its type might have changed)
+    def display_new_trajectory(self, model):
+        print('#main_window::display_new_trajectory')
+        #traceback.print_stack()
+        if self.geometry_window.isVisible():
+            self.geometry_window.display_new_trajectory(model)
+        self.threed_view.display_new_trajectory(model)
+
+    # update a trajectory (its type has not changed)
     def update_plot(self, model):
+        print('#main_window::update plot')
         if self.space_idx_chronogram_window.isVisible():
             self.space_idx_chronogram_window.si_chrono_view._draw(model)
             self.space_idx_chronogram_window.si_chrono_view.draw_geometry(model)
@@ -199,9 +231,7 @@ class MainWindow(QMainWindow):
         if self.geometry_window.isVisible():
             self.geometry_window.update_plot(model)
 
-        wps = self.model.get_waypoints()
-        time, Y = self.model.sample_output()
-        self.threed_view.redraw(wps, Y)
+        self.threed_view.update_trajectory(model)
             
     def draw_current_pose(self, elapsed, Y, rmat):
-        self.threed_view.draw_quad(Y, rmat)
+        self.threed_view.set_quad_pose(Y, rmat)

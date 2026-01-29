@@ -12,9 +12,9 @@ import traj_factory
         
 
 class Model:
-    def __init__(self):
-        #self.trajectory = Trajectory('./traj_exemple.yaml')
-        self.load_from_factory('ex_si0')
+    def __init__(self, load_id='ex_si1'):
+        #self.trajectory = Trajectory('./traj_exemple.yaml') # maybe someday....
+        self.load_from_factory(load_id)
         
         self.wps = self.trajectory.wps 
         self.wp_traj = self.trajectory.wp_traj
@@ -22,12 +22,16 @@ class Model:
         self.set_dynamics(self.trajectory.dyn_ctl_pts)
         self.fdm = p_mfdm.MR_FDM()
 
-        self.extends = ((-5, 5), (-5, 5), (0, 10.))
+        self.extends = ((-5, 5), (-5, 5), (0, 8.))
+        self.extends = ((-5, 5), (-4, 4), (0, 8.))
 
        
     def load_from_factory(self, which):
-        print('model loaded ', which)
         self.trajectory = traj_factory.TrajFactory.trajectories[which]()
+        print(f'model loaded {which} ({self.trajectory.desc}, {self.trajectory.duration}s)')
+
+    def get_trajectory(self): return self.trajectory
+        
         
     def get_output_at(self, t):
         return self.trajectory.get(t)

@@ -2,10 +2,27 @@
 #
 # Unsorted and temporaty stuff
 #
+import numpy as np
 from PySide6.QtWidgets import QWidget 
 from PySide6.QtGui import QPalette, QColor
 
+# I can't seem to get axis.autoscale to work :(
+# was missing ax.relim(). Temporarily Keeping that for reference
+def autoscale_axis(ax, px, py, mg=0.05, min_span=0.1):
+    xm, xM, ym, yM = np.min(px), np.max(px), np.min(py), np.max(py)
+    #dx, dy = np.max(min_span, xM-xm), np.max(min_span, yM-ym) # wtf!!!!
+    dx, dy = max(min_span, xM-xm), max(min_span, yM-ym)
+    xm-=mg*dx; xM+=mg*dx; ym-=mg*dy; yM+=mg*dy 
+    ax.set(xlim=(xm, xM), ylim=(ym, yM))
 
+
+def decorate(ax, title=None, xlab=None, ylab=None, legend=None, grid=None):
+    if title is not None: ax.set_title(title)
+    if xlab  is not None: ax.xaxis.set_label_text(xlab)
+    if ylab  is not None: ax.yaxis.set_label_text(ylab)
+    if legend is not None: ax.legend()
+    if grid is not None: ax.grid(True)
+    
 class ColoredWidget(QWidget):
     def __init__(self, color):
         super().__init__()
@@ -15,111 +32,71 @@ class ColoredWidget(QWidget):
         self.setPalette(palette)
     def redraw(self, wps): pass
        
-
-from matplotlib.figure import Figure
-from matplotlib.patches import Circle
-
- 
-class DraggableWP:
+#
+# Matplolib markers that can be mouse-dragged
+#
+class DraggableMarker:
     lock = None # only one can be dragged at a time
-    def __init__(self, ax, pos, radius, label, cbk, cbk_arg):
-        self.point = Circle(pos, radius); ax.add_artist(self.point)
-        self.txt = ax.text(self.point.center[0], self.point.center[1], label,
+    def __init__(self, ax, pos, label, cbk, cbk_arg, ylims=None, autoconnect=True):
+        self.txt = ax.text(pos[0], pos[1], label,
                            bbox = dict(boxstyle="circle", fc="lightgrey"),
                            horizontalalignment='center', verticalalignment='center')
         self.cbk, self.cbk_arg = cbk, cbk_arg
-        self.press = None
+        self.ylims = ylims
         self.background = None
+        if autoconnect: self.connect()
 
-    def get_center(self):
-        return self.txt.get_position()
+    def remove(self):
+        self.txt.remove()
+        
+    def get_center(self): return self.txt.get_position()
         
     def connect(self):
-        """Connect to all the events we need."""
-        self.cidpress = self.point.figure.canvas.mpl_connect(
-            'button_press_event', self.on_press)
-        self.cidrelease = self.point.figure.canvas.mpl_connect(
-            'button_release_event', self.on_release)
-        self.cidmotion = self.point.figure.canvas.mpl_connect(
-            'motion_notify_event', self.on_motion)
-        canvas = self.txt.figure.canvas
-        self.cidpress = canvas.mpl_connect('button_press_event', self.on_foo)
+        events = ['button_press_event', 'button_release_event', 'motion_notify_event']
+        cbks = [self.on_press, self.on_release, self.on_motion]
+        self.cids = [self.txt.figure.canvas.mpl_connect(e,c) for e,c in zip(events, cbks)]
 
-
-    def on_foo(self, event):
-        #breakpoint()
-        #print('foo', event)
-        pass
-    
+    def disconnect(self):
+        for cid in self.cids: self.txt.figure.canvas.mpl_disconnect(self.cidpress)
+        
     def on_press(self, event):
-        """Check whether mouse is over us; if so, store some data."""
-        if (event.inaxes != self.point.axes or DraggableWP.lock is not None):
+        if (event.inaxes != self.txt.axes or DraggableMarker.lock is not None):
             return
-        contains, attrd = self.point.contains(event)
-        if not contains:
-            return
-        #print('event contains', self.point.xy)
-        self.press = self.point.center, (event.xdata, event.ydata)
-        DraggableWP.lock = self
-
+        if not self.txt.contains(event)[0]: return
+        DraggableMarker.lock = self
         # draw everything but the selected rectangle and store the pixel buffer
-        canvas = self.point.figure.canvas
-        axes = self.point.axes
-        self.point.set_animated(True)
+        canvas, axes = self.txt.figure.canvas, self.txt.axes
+        self.txt.set_animated(True)
         canvas.draw()
-        self.background = canvas.copy_from_bbox(self.point.axes.bbox)
-
+        self.background = canvas.copy_from_bbox(axes.bbox)
         # now redraw just the rectangle
-        axes.draw_artist(self.point)
-
+        axes.draw_artist(self.txt)
         # and blit just the redrawn area
         canvas.blit(axes.bbox)
 
     def on_motion(self, event):
-        """Move the rectangle if the mouse is over us."""
-        if (event.inaxes != self.point.axes
-                or DraggableWP.lock is not self):
+        if (event.inaxes != self.txt.axes or DraggableMarker.lock is not self):
             return
-        (x0, y0), (xpress, ypress) = self.press
-        self.point.set(center=(event.xdata, event.ydata))
-
-        canvas = self.point.figure.canvas
-        axes = self.point.axes
+        pos = (event.xdata, event.ydata) if self.ylims is None else (event.xdata, np.clip(event.ydata, *self.ylims))
+        self.txt.set_position(pos)
+        canvas, axes = self.txt.figure.canvas, self.txt.axes
         # restore the background region
         canvas.restore_region(self.background)
-
         # redraw just the current rectangle
-        axes.draw_artist(self.point)
-
+        axes.draw_artist(self.txt)
         # blit just the redrawn area
         canvas.blit(axes.bbox)
 
     def on_release(self, event):
-        """Clear button press information."""
-        if DraggableWP.lock is not self:
+        if DraggableMarker.lock is not self:
             return
-
-        self.press = None
-        DraggableWP.lock = None
-
+        DraggableMarker.lock = None
         # turn off the rect animation property and reset the background
-        self.point.set_animated(False)
+        self.txt.set_animated(False)
         self.background = None
-        #
-        # FIXME
-        self.txt.set_position(self.point.get_center())
-        
         # redraw the full figure
-        self.point.figure.canvas.draw()
+        self.txt.figure.canvas.draw()
         self.cbk(self.cbk_arg)
-   
-    def disconnect(self):
-        """Disconnect all callbacks."""
-        self.point.figure.canvas.mpl_disconnect(self.cidpress)
-        self.point.figure.canvas.mpl_disconnect(self.cidrelease)
-        self.point.figure.canvas.mpl_disconnect(self.cidmotion)
 
-    def set_position(self, pos):
-        self.txt.set_position(pos)
-        self.point.set(center=pos)
+    def set_position(self, pos): self.txt.set_position(pos)
    

@@ -17,33 +17,34 @@ class Application(QApplication):
     def __init__(self):
         super().__init__(sys.argv)
         self.model = cnf_mod.Model()
-        self.window = cnf_mw.MainWindow(self.model, self.on_dyn_point_moved, self)
+        self.window = cnf_mw.MainWindow(self.model, self)
         self.timer = PySide6.QtCore.QTimer(self)
         self.timer.timeout.connect(self.periodic)
         self.window.show()
 
     def load_from_factory(self, which):
         self.model.load_from_factory(which)
-        self.window.update_plot(self.model)
+        self.timer_t0 = time.time()
+        self.window.display_new_trajectory(self.model) # we need to decide if model is passed in constructor or in callbacks!!!!
+        #self.window.update_plot(self.model)
         
-    def on_dyn_point_moved(self):
-        marker_pos = np.array([p.c.center for p in self.window.space_idx_chronogram_window.si_chrono_view.dyn_points])
-        self.model.set_dynamics(marker_pos)
+    def on_dyn_ctl_point_moved(self, dyn_ctl_pts):
+        self.model.set_dynamics(dyn_ctl_pts)
         self.window.update_plot(self.model)
         print('on dyn points moved')
 
     def on_geom_waypoint_moved(self, wps):
+        print('CNF::on_geom_waypoint_moved')
         self.model.set_waypoints(wps)
         self.window.update_plot(self.model)
-        print('on geom waypoint moved')
         
-    def toggle_play(self, s=None):
-        print("toggle play", s)
+    def toggle_animate(self, s=None):
         if self.timer.isActive():
             self.timer.stop()
         else:
-            self.timer.start(100)
+            self.window.threed_view.show_quad(True) # maybe don't access threed_view directly?
             self.timer_t0 = time.time()
+            self.timer.start(100)
 
     def periodic(self):
         elapsed = time.time() - self.timer_t0 
