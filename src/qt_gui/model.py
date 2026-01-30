@@ -1,5 +1,5 @@
+import logging, yaml
 import numpy as np
-import yaml
 
 import pat3.algebra as p_al, pat3.trajectory_1D as p_t1d
 import pat3.vehicles.rotorcraft.multirotor_trajectory as p_tm
@@ -7,9 +7,9 @@ import pat3.vehicles.rotorcraft.multirotor_trajectory_dev as p_tmdev
 import pat3.vehicles.rotorcraft.multirotor_fdm as p_mfdm
 import pat3.vehicles.rotorcraft.multirotor_control as p_mctl
 
-
 import traj_factory
         
+logger = logging.getLogger(__name__)
 
 class Model:
     def __init__(self, load_id='ex_si1'):
@@ -23,12 +23,12 @@ class Model:
         self.fdm = p_mfdm.MR_FDM()
 
         self.extends = ((-5, 5), (-5, 5), (0, 8.))
-        self.extends = ((-5, 5), (-4, 4), (0, 8.))
+        self.safe = ((-4, 4), (-4, 4), (1, 7.))
 
        
     def load_from_factory(self, which):
         self.trajectory = traj_factory.TrajFactory.trajectories[which]()
-        print(f'model loaded {which} ({self.trajectory.desc}, {self.trajectory.duration}s)')
+        logger.info(f'loaded {which} ({self.trajectory.desc}, {self.trajectory.duration}s)')
 
     def get_trajectory(self): return self.trajectory
         
@@ -59,8 +59,10 @@ class Model:
     # TODO: cache sampling
 
     def sample_geometry(self, npts=1000):
-        ls = np.linspace(0, 1, npts)
-        return ls, np.array([self.trajectory.wp_traj.get(l) for l in ls])
+        if self.trajectory.is_space_indexed():
+            ls = np.linspace(0, 1, npts)
+            return ls, np.array([self.trajectory.wp_traj.get(l) for l in ls])
+        else: return [],[] # MAYBE return None instead?
 
     def sample_dynamics(self, npts=1000):
         time = np.linspace(0, self.trajectory.duration, npts)

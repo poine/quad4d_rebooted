@@ -1,5 +1,5 @@
 #!/bin/env python3
-import sys, time, signal
+import sys, time, signal, logging
 import numpy as np
 
 from PySide6.QtGui import QAction, QIcon, QCursor, Qt, QColor, QPalette
@@ -7,11 +7,12 @@ from PySide6.QtWidgets import QMainWindow, QMenu, QApplication, QWidget, QVBoxLa
 import PySide6.QtCore
 
 
-import model as cnf_mod
-import main_window as cnf_mw
+import model as cnf_mod, main_window as cnf_mw, view_geometry as cng_geom
 
 import traj_guided
 #from pprzlink.message import PprzMessage
+
+logger = logging.getLogger(__name__)
 
 class Application(QApplication):
     def __init__(self):
@@ -26,15 +27,14 @@ class Application(QApplication):
         self.model.load_from_factory(which)
         self.timer_t0 = time.time()
         self.window.display_new_trajectory(self.model) # we need to decide if model is passed in constructor or in callbacks!!!!
-        #self.window.update_plot(self.model)
         
     def on_dyn_ctl_point_moved(self, dyn_ctl_pts):
+        logger.debug('on dyn points moved')
         self.model.set_dynamics(dyn_ctl_pts)
         self.window.update_plot(self.model)
-        print('on dyn points moved')
 
     def on_geom_waypoint_moved(self, wps):
-        print('CNF::on_geom_waypoint_moved')
+        logger.debug('CNF::on_geom_waypoint_moved')
         self.model.set_waypoints(wps)
         self.window.update_plot(self.model)
         
@@ -56,7 +56,7 @@ class Application(QApplication):
         self.window.draw_current_pose(elapsed, Y, rmat)
 
     def export_to_csv(self, filename, sample_time=0.05):
-         print(f'exporting to {filename}')
+         logger.debug(f'exporting to {filename}')
          time, Y = self.model.sample_output()
          np.savetxt(filename, np.hstack((time[:,np.newaxis], Y[:,:,0], Y[:,:,1], Y[:,:,2])), delimiter=',',
                     header='time,x(N),y(E),z(D),psi,xd(N),yd(E),zd(D),psid,xdd(N),ydd(E),zdd(D),psidd')
@@ -68,6 +68,10 @@ def main():
     sys.exit(app.exec())
 
 if __name__=="__main__":
+    logging.basicConfig(level=logging.INFO)
+    logger.setLevel(logging.DEBUG)
+    cnf_mw.logger.setLevel(logging.DEBUG)
+    cng_geom.logger.setLevel(logging.DEBUG)
     main()
 
 

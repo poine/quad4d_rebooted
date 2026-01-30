@@ -7,20 +7,69 @@ import pat3.vehicles.rotorcraft.multirotor_trajectory as p_mt
 import pat3.vehicles.rotorcraft.multirotor_trajectory_dev as p_mt_dev
 
 class Traj1(p_mt.Circle):
-    name, desc = 'circle1', 'circle r=2 v=4'
-    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=4., psit=None)#p_mt.AffineOne(1, 0))
+    name, desc = 'circle1', 'circle r=2 v=4, constant heading and height'
+    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=4., psit=p_t1d.CstOne(0))
 
-class Traj2(p_mt.SmoothBackAndForth):
+class Traj2(p_mt.Circle):
+    name, desc = 'circle2', 'circle r=2 v=4, constant heading, sine height'
+    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=2., psit=p_t1d.CstOne(0), zt=p_t1d.SinOne(c=2, a=0.5, om=4))
+
+class Traj3(p_mt.SmoothBackAndForth):
     name, desc = 'smooth_back_and_forth', 'smooth back and forth'
     def __init__(self):
         super().__init__(Y0=[-1, 0, 1.5, 0], Y1=[1, 0, 2.5, 0])
         
-class Traj3(p_mt.CircleWithIntro):
+class Traj4(p_mt.CircleWithIntro):
     name, desc = 'circle_with_intro', 'circle with intro'
     def __init__(self):
         super().__init__(Y0=[0, 0, 1.5, 0], c=[0, 0, 2.5],
                          r=2., v=3., dt_intro=5., dt_stay=0.5, psit=p_t1d.CstOne(0.))
 
+
+class Donut0(p_mt.Trajectory):
+    name, desc = 'donut', 'quad4d rebooted: donut'
+    def __init__(self, c=[0, 0, -2.], r=1., r2=1., v=4., psi=None, duration=80.):
+        self.c, self.r, self.r2, self.v = np.asarray(c), r, r2, v # center, radius, velocity
+        self.omega1, self.omega2 = 1, 0.1 #self.v/self.r
+        self.t0, self.duration = 0, duration
+
+    def reset(self, t0):
+        self.t0 = t0
+
+    def get(self, t):
+        dt = t-self.t0
+        alpha, beta = self.omega1*dt, self.omega2*dt
+        rca, rsa = np.abs(self.r)*np.cos(alpha), np.abs(self.r)*np.sin(alpha)
+        cb, sb = np.cos(beta), np.sin(beta)
+        c1 = self.c + [-self.r2*sb, self.r2*cb, 0]
+        A = np.array([[cb, -sb, 0],[sb, cb, 0],[0, 0, 1]])
+        B = np.array([0, rsa, rca])
+        Yc = np.zeros((5,4))
+        Yc[0,:p_mt._z+1] = c1 + A@B
+        #cbd, sbd = self.omega2
+        c1d = [-self.omega2*self.r2*cb, -self.omega2*self.r2*sb, 0]
+        Ad = self.omega2 * np.array([[-sb, -cb, 0],[cb, -sb, 0],[0, 0, 1]])
+        Bd = self.omega1 * np.array([0, rca, -rsa])
+        Yc[1,:p_mt._z+1] = c1d + Ad@B + A@Bd
+        return Yc.T
+
+class Donut1(p_mt.CompositeTraj):
+    name, desc = 'donut_with_intro', 'quad4d rebooted: donut with intro'
+    def __init__(self):
+        Y0 = [0., 0, -1.5, 0.]
+        d1 = Donut0(r=0.7, r2=1., duration=61.)
+        Y1 = d1.get(0)#[:,0]
+        Y2 = d1.get(d1.duration)
+        steps = [p_mt.SmoothLine(Y0, Y1, duration=2.),
+                 d1,
+                 p_mt.SmoothLine(Y2, Y0, duration=2.),
+                 p_mt.Cst(Y0, duration=1.)]
+        super().__init__(steps)
+
+
+
+
+        
 
 class Traj17(p_mt.Trajectory):
     name, desc = 'sphere0', 'sphere0'
@@ -97,13 +146,13 @@ class Traj42(p_mt_dev.SpaceIndexedTraj):
 
     def get_waypoints(self): return self.wps
         
+    def has_dyn_ctl_pts(self): return True
     def set_dynamic(self, dyn_ctl_pts):
         self.dyn_ctl_pts = dyn_ctl_pts
         self.dyn_segments = [p_t1d.AffOne(self.dyn_ctl_pts[i], self.dyn_ctl_pts[i+1]) for i in range(len(self.dyn_ctl_pts)-1)]
         self.dyn_traj = p_t1d.SmoothedCompositeOne(self.dyn_segments, eps=0.75)
         self.traj = p_mt_dev.SpaceIndexedTraj(self.wp_traj, self.dyn_traj)
         self.duration = self.traj.duration
-
     def get_dyn_ctl_pts(self): return self.dyn_ctl_pts
         
     def get(self, t):
@@ -133,7 +182,7 @@ class Traj44(Traj42):
                         [0,  1, 1.5],
                         [2,  2, 2.5],
                         [0,  3, 1.5]])
-        dyn_pts = [[0,0],[1., 0], [3.,0.2], [5.,0.7], [7.,0.8], [9., 1.], [10,1.]]
+        dyn_pts = [[0,0],[1., 0], [2.,0.1], [3.,0.2], [5.,0.7], [7.,0.8], [9., 1.], [10,1.]]
         super().__init__(wps, dyn_pts)
 
     
@@ -147,6 +196,9 @@ class TrajFactory:
 TrajFactory.register(Traj1)
 TrajFactory.register(Traj2)
 TrajFactory.register(Traj3)
+TrajFactory.register(Traj4)
+TrajFactory.register(Donut0)
+TrajFactory.register(Donut1)
 TrajFactory.register(Traj17)
 TrajFactory.register(Traj42)
 TrajFactory.register(Traj43)

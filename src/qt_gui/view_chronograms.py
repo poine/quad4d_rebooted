@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from matplotlib.figure import Figure
@@ -11,6 +12,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout)
 import pat3.vehicles.rotorcraft.multirotor_trajectory as p_mt
 import misc_utils as mu
 
+logger = logging.getLogger(__name__)
+
 class SpaceIndexedChronogram(FigureCanvas):
     def __init__(self, model, cbk):
         super().__init__(Figure(figsize=(12, 10)))
@@ -20,24 +23,26 @@ class SpaceIndexedChronogram(FigureCanvas):
         self.lines_geom = [ax1.plot([],[], label=l)[0] for l in ['x', 'y', 'z']]
         mu.decorate(ax1, title='Geometry', xlab='relative (%)', ylab='m', legend=True, grid=True)
         
-        self.dyn_markers = [mu.DraggableMarker(ax2, p, f'{i}', cbk, None, (0,1)) for i, p in enumerate(model.trajectory.get_dyn_ctl_pts())]
-        self.line_pw_dyn, self.line_smthd_dyn = ax2.plot([],[])[0], ax2.plot([],[])[0]
+        self.markers_dyn = []
+        self.line_marker_dyn, self.line_dyn = ax2.plot([],[])[0], ax2.plot([],[])[0]
+        self.markers_cbk = cbk
         mu.decorate(ax2, title='Dynamics', xlab='time in s', ylab='relative (%)', grid=True)
         
         self.lines_comp = [ax3.plot([],[], label=l)[0] for l in ['x', 'y', 'z']]
         mu.decorate(ax3, title='Composed', xlab='time in s', ylab='m', legend=True, grid=True)
 
     def _draw(self, model):
-        if model.trajectory.has_dyn_ctl_pts():
-            dyn_ctl_pts = model.trajectory.get_dyn_ctl_pts()
-            self.line_pw_dyn.set_data(dyn_ctl_pts[:,0], dyn_ctl_pts[:,1])
+        traj = model.get_trajectory()
+        if traj.has_dyn_ctl_pts():
+            dyn_ctl_pts = traj.get_dyn_ctl_pts()
+            self.line_marker_dyn.set_data(dyn_ctl_pts[:,0], dyn_ctl_pts[:,1])
         time, smtd_dyn_pts = model.sample_dynamics()
-        self.line_smthd_dyn.set_data(time, smtd_dyn_pts[:,0])
-        #autoscale_axis(self.axes[1], time, smtd_dyn_pts[:,0])
+        self.line_dyn.set_data(time, smtd_dyn_pts[:,0])
+        mu.autoscale_axis(self.axes[1], time, smtd_dyn_pts[:,0])
         time, comp_pts =  model.sample_output()
         for i in range(3): self.lines_comp[i].set_data(time, comp_pts[:,i,0])
-        #autoscale_axis(self.axes[2], time, comp_pts[:,:,0]);
-        self.axes[1].relim(); self.axes[2].relim()
+        mu.autoscale_axis(self.axes[2], time, comp_pts[:,:,0]);
+        #self.axes[1].relim(); self.axes[2].relim()
         self.draw()
         
     def draw_geometry(self, model):
@@ -45,7 +50,21 @@ class SpaceIndexedChronogram(FigureCanvas):
         for i in range(3): self.lines_geom[i].set_data(ls, pts_geom[:,i,0])
         mu.autoscale_axis(self.axes[0], ls, pts_geom[:,:,0]); self.draw()
         #self.axes[0].relim(); self.draw() # !!!! WTF!!!!
+
+    def update_plot(self, model):
+        self.draw_geometry(model)
+        self._draw(model)
         
+    def display_new_trajectory(self, model):
+        print(' #SpaceIndexedChronogram::display_new_trajectory')
+        for m in self.markers_dyn: m.remove()
+        self.markers_dyn = []
+        traj = model.get_trajectory()
+        if traj.has_dyn_ctl_pts():
+            dyn_ctl_pts = model.trajectory.get_dyn_ctl_pts()
+            self.markers_dyn = [mu.DraggableMarker(self.axes[1], p, f'{i+1}', self.markers_cbk, None, (0,1)) for i, p in enumerate(dyn_ctl_pts)]
+        self.update_plot(model)
+                     
 class SiChronoWindow(QWidget):
     closed = Signal()
     def __init__(self, model, controller):
@@ -65,9 +84,15 @@ class SiChronoWindow(QWidget):
         super().closeEvent(event)
             
     def on_marker_moved(self, arg):
-        marker_pos = np.array([p.get_center() for p in self.si_chrono_view.dyn_markers])
+        marker_pos = np.array([p.get_center() for p in self.si_chrono_view.markers_dyn])
         self.controller.on_dyn_ctl_point_moved(marker_pos)
-            
+
+    def display_new_trajectory(self, model):
+        self.si_chrono_view.display_new_trajectory(model)
+
+    def update_plot(self, model): self.si_chrono_view.update_plot(model)
+    
+        
 class OutputChronogram(FigureCanvas):
     def __init__(self):
         super().__init__(Figure(figsize=(12, 10)))
@@ -84,7 +109,9 @@ class OutputChronogram(FigureCanvas):
                 self.lines[d, c] = self.axes[d,c].plot([],[])[0]
                 
     # no difference between new trajectory and update
-    def display_new_trajectory(self, model): self.update_plot(model)
+    def display_new_trajectory(self, model):
+        print(' #OutputChronogram::display_new_trajectory')
+        self.update_plot(model)
 
     def update_plot(self, model):
         time, Y = model.sample_output()
@@ -92,8 +119,8 @@ class OutputChronogram(FigureCanvas):
             for c in range(p_mt._ylen):
                 #self.axes[d,c].plot(time, Y[:,c,d])
                 self.lines[d, c].set_data(time, Y[:,c,d])
-                self.axes[d,c].relim()
-                #autoscale_axis(self.axes[d,c], time, Y[:,c,d])
+                #self.axes[d,c].relim()
+                mu.autoscale_axis(self.axes[d,c], time, Y[:,c,d])
         self.draw()
         
             
@@ -113,7 +140,9 @@ class StateChronogram(FigureCanvas):
         mu.decorate(ax3, title='Attitude', xlab='time in s', ylab='degres', legend=True, grid=True)
 
     # no difference between new trajectory and update
-    def display_new_trajectory(self, model): self.update_plot(model)
+    def display_new_trajectory(self, model):
+        print(' #StateChronogram::display_new_trajectory')
+        self.update_plot(model)
         
     def update_plot(self, model):
         time, pos, vel, euler = model.sample_state()
@@ -121,8 +150,9 @@ class StateChronogram(FigureCanvas):
         self.line_vel.set_data( time, vel)
         for i in range(2): self.lines_att[i].set_data(time, np.rad2deg(euler[:,i]))
         for ax in self.axes: ax.relim()
-        self.draw()
-            
+        #self.draw()
+        mu.autoscale_axis(self.axes[1], time, vel)
+        self.draw()   
 
 # pack some plot into a QWidget
 class ChronogramWindow(QWidget):
@@ -143,5 +173,4 @@ class ChronogramWindow(QWidget):
     def update_plot(self, model): self._chronogram.update_plot(model)
 
     def display_new_trajectory(self, model):
-        print(' #ChronogramWindow::display_new_trajectory')
         self._chronogram.display_new_trajectory(model)

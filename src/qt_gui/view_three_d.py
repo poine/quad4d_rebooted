@@ -1,12 +1,13 @@
+import logging
+import numpy as np, stl #numpy-stl
+
 from PySide6.QtCore import Qt
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui
 import pyqtgraph.opengl as gl
 from PySide6.QtGui import (QFont, QVector3D)
 
-import stl #numpy-stl
-
-import numpy as np
+logger = logging.getLogger(__name__)
 
 class ThreeDWidget(gl.GLViewWidget):
     def __init__(self, model=None):
@@ -90,8 +91,7 @@ class ThreeDWidget(gl.GLViewWidget):
 
 
     def display_new_trajectory(self, model):
-        print(' #3D::display_new_trajectory')
-
+        logger.debug('in display_new_trajectory')
         if self.waypoints_item is not None: self.removeItem(self.waypoints_item)
         if self.waypoints_line_item is not None: self.removeItem(self.waypoints_line_item)
         if self.waypoints_text_items is not None:
@@ -136,8 +136,8 @@ class ThreeDWidget(gl.GLViewWidget):
         #self.line_traj_smoothed = gl.GLLinePlotItem(pos=Y[:,:3,0], color=(1., 0.5, 0.055, 1), width=2., antialias=True)
         #self.addItem(self.line_traj_smoothed)
         
-    def update_trajectory(self, model): 
-        print(' #3D::update_trajectory')
+    def update_plot(self, model): 
+        logger.debug('in update_trajectory')
         if self.waypoints_item is not None:
             wps = model.get_waypoints()
             self.waypoints_item.setData(pos=wps)

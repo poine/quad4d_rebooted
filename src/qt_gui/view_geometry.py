@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from PySide6.QtCore import Qt, QSize, Signal, Slot
@@ -13,10 +15,9 @@ from PySide6.QtGui import (QGuiApplication, QMatrix4x4, QQuaternion, QVector3D)
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 
-
-import view_three_d as tdvg
 import misc_utils
 
+logger = logging.getLogger(__name__)
 
 class ProjView(FigureCanvas):
     def __init__(self, ix, iy, title, xlab, ylab, cbk):
@@ -33,15 +34,18 @@ class ProjView(FigureCanvas):
         self.line_traj = self.__ax.plot([],[])[0]
 
     def display_new_trajectory(self, model):
-        print('  #proj_view::display_new_trajectory')
+        logger.debug('  in display_new_trajectory')
         for m in self.markers_waypoints: m.remove()
         self.markers_waypoints = []
         _traj = model.get_trajectory()
         if _traj.has_waypoints():
             wps = _traj.get_waypoints()
-            self.markers_waypoints = [misc_utils.DraggableMarker(self.__ax, wp[np.ix_([self.ix,self.iy])], f'{i+1}', self.markers_moved_cbk, self)
-                                      for i,wp in enumerate(wps)]
+            self.markers_waypoints =\
+             [misc_utils.DraggableMarker(self.__ax, wp[np.ix_([self.ix,self.iy])], f'{i+1}', self.markers_moved_cbk, self)
+              for i,wp in enumerate(wps)]
             self.line_waypoints.set_data(wps[:,self.ix], wps[:,self.iy])
+        else:
+            self.line_waypoints.set_data([],[])
         _time, Ys = model.sample_output()
         self.line_traj.set_data(Ys[:,self.ix,0], Ys[:,self.iy,0])
         self.__ax.set(xlim=model.extends[self.ix], ylim=model.extends[self.iy])
@@ -51,8 +55,8 @@ class ProjView(FigureCanvas):
     def refresh(self, wps, Y):
         self.line_waypoints.set_data(wps[:,self.ix], wps[:,self.iy])
         self.line_traj.set_data(Y[:,self.ix,0], Y[:,self.iy,0])
-        #for wp, m in zip(wps, self.markers):               # not needed unless markers been moved externaly
-        #    m.set_position(wp[np.ix_([self.ix,self.iy])])
+        for wp, m in zip(wps, self.markers_waypoints):              
+            m.set_position(wp[np.ix_([self.ix,self.iy])])
         self.draw() 
 
 class TopView(ProjView):
@@ -96,7 +100,7 @@ class Window(QWidget):
         self.controller.on_geom_waypoint_moved(wps)
 
     def display_new_trajectory(self, model):
-        print(' #view_geom::display_new_trajectory')
+        logger.debug(' in display_new_trajectory')
         for v in self.views: v.display_new_trajectory(model)
 
     def update_plot(self, model):
