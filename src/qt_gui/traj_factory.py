@@ -7,28 +7,65 @@ import pat3.vehicles.rotorcraft.multirotor_trajectory as p_mt
 import pat3.vehicles.rotorcraft.multirotor_trajectory_dev as p_mt_dev
 
 class Traj1(p_mt.Circle):
-    name, desc = 'circle1', 'circle r=2 v=4, constant heading and height'
+    name, desc = 'circle north', 'circle r=2 v=4, constant heading and height'
     def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=4., psit=p_t1d.CstOne(0))
 
 class Traj2(p_mt.Circle):
-    name, desc = 'circle2', 'circle r=2 v=4, constant heading, sine height'
+    name, desc = 'circle center', 'circle r=2 v=4, facing center, constant height'
+    def __init__(self):
+        r, v, alpha0 = 2., 4., 0; om = v/r; psit = p_t1d.AffineOne(om, alpha0+np.sign(r)*np.pi)
+        p_mt.Circle.__init__(self, [0, 0, 1.5], r=r, v=v, alpha0=alpha0, psit=psit)
+
+class Traj3(p_mt.Circle):
+    name, desc = 'circle front', 'circle r=2 v=4, facing forward, constant height'
+    def __init__(self):
+        r, v, alpha0 = -2., 4., 0; om = v/r; psit = p_t1d.AffineOne(om, alpha0+np.sign(r)*np.pi/2)
+        p_mt.Circle.__init__(self, [0, 0, 1.5], r=r, v=v, alpha0=alpha0, psit=psit)
+    
+class Traj4(p_mt.Circle):
+    name, desc = 'circle zsine', 'circle r=2 v=4, constant heading, sine height'
     def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=2., psit=p_t1d.CstOne(0), zt=p_t1d.SinOne(c=2, a=0.5, om=4))
 
-class Traj3(p_mt.SmoothBackAndForth):
+class Traj5(p_mt.SmoothBackAndForth):
     name, desc = 'smooth_back_and_forth', 'smooth back and forth'
     def __init__(self):
         super().__init__(Y0=[-1, 0, 1.5, 0], Y1=[1, 0, 2.5, 0])
-        
-class Traj4(p_mt.CircleWithIntro):
+
+class Traj6(p_mt.CircleWithIntro):
     name, desc = 'circle_with_intro', 'circle with intro'
     def __init__(self):
         super().__init__(Y0=[0, 0, 1.5, 0], c=[0, 0, 2.5],
+                         #r=2., v=1., dt_intro=5., dt_stay=0.5, psit=p_t1d.CstOne(0.))
                          r=2., v=3., dt_intro=5., dt_stay=0.5, psit=p_t1d.CstOne(0.))
 
+class Traj61(p_mt.CircleWithIntro):
+    name, desc = 'circle_with_intro1', 'circle with intro'
+    def __init__(self):
+        super().__init__(Y0=[-0.5, -0.5, 1., 0], c=[-1, 0, 2.],
+                         r=2., v=1., dt_intro=5., dt_stay=5., psit=p_t1d.CstOne(0.))
+class Traj62(p_mt.CircleWithIntro):
+    name, desc = 'circle_with_intro2', 'circle with intro'
+    def __init__(self):
+        super().__init__(Y0=[0., 0., 1.5, 0], c=[0, 0, 2.5],
+                         r=2., v=1., dt_intro=5., dt_stay=5., psit=p_t1d.CstOne(0.))
+class Traj63(p_mt.CircleWithIntro):
+    name, desc = 'circle_with_intro3', 'circle with intro'
+    def __init__(self):
+        super().__init__(Y0=[0.5, 0.5, 2., 0], c=[1, 0, 3.],
+                         r=2., v=1., dt_intro=5., dt_stay=5., psit=p_t1d.CstOne(0.))
 
+
+
+        
+class Traj7(p_mt.Oval):
+    name, desc = 'oval', 'oval'
+    def __init__(self):
+        super().__init__(l=2, r=1.5, v=2., z=2)
+
+        
 class Donut0(p_mt.Trajectory):
     name, desc = 'donut', 'quad4d rebooted: donut'
-    def __init__(self, c=[0, 0, -2.], r=1., r2=1., v=4., psi=None, duration=80.):
+    def __init__(self, c=[0, 0, 3.], r=1., r2=1., v=4., psi=None, duration=80.):
         self.c, self.r, self.r2, self.v = np.asarray(c), r, r2, v # center, radius, velocity
         self.omega1, self.omega2 = 1, 0.1 #self.v/self.r
         self.t0, self.duration = 0, duration
@@ -56,7 +93,7 @@ class Donut0(p_mt.Trajectory):
 class Donut1(p_mt.CompositeTraj):
     name, desc = 'donut_with_intro', 'quad4d rebooted: donut with intro'
     def __init__(self):
-        Y0 = [0., 0, -1.5, 0.]
+        Y0 = [0., 0, 1.5, 0.]
         d1 = Donut0(r=0.7, r2=1., duration=61.)
         Y1 = d1.get(0)#[:,0]
         Y2 = d1.get(d1.duration)
@@ -123,13 +160,13 @@ class Traj17(p_mt.Trajectory):
 
         
 class Traj42(p_mt_dev.SpaceIndexedTraj):
-    name, desc = 'ex_si1', 'Space indexed waypoint trajectory example 1'
+    name, desc = 'space indexed race track 1', 'Space indexed waypoint trajectory example 1'
     def __init__(self, wps=None, dyn_pts=None):
         wps = wps if wps is not None else [[0.2,0, 1],[2.,3., 2], [2.,-3., 3], [-2.,-3., 4], [-2.,3., 3], [-0.2, 0., 2]]
         dyn_pts = dyn_pts if dyn_pts is not None else [[0,0],[1., 0], [4.5,0.1], [7.5,0.7], [10.,0.9], [14., 1.], [15,1.]]
         #dyn_pts = [[0,0],[1., 0], [3.,0.1], [5.,0.7], [7.,0.9], [9., 1.], [10,1.]]
         self.wps = np.array(wps)
-        self.wp_traj = p_mt_dev.SpaceWaypoints(self.wps)
+        self.wp_traj = p_mt_dev.SpaceWaypoints2(self.wps)
         self.dyn_ctl_pts = np.array(dyn_pts)
         self.dyn_segments = [p_t1d.AffOne(self.dyn_ctl_pts[i], self.dyn_ctl_pts[i+1]) for i in range(len(self.dyn_ctl_pts)-1)]
         self.dyn_traj = p_t1d.SmoothedCompositeOne(self.dyn_segments, eps=0.75)
@@ -160,7 +197,7 @@ class Traj42(p_mt_dev.SpaceIndexedTraj):
 
 # optimized version of the above for duration with max vel
 class Traj43(Traj42):
-    name, desc = 'ex_si2', 'Space indexed waypoint trajectory example 2'
+    name, desc = 'space indexed race track 2', 'Space indexed waypoint trajectory example 2'
     def __init__(self):
         super().__init__()
         self.dt_acc, self.dl_acc, self.dt_cruise = 5.06857143, 0.29494083, 4.73810948
@@ -173,7 +210,7 @@ class Traj43(Traj42):
         pass # TODO
 
 class Traj44(Traj42):
-    name, desc = 'ex_si3', 'Space indexed waypoint slalom'
+    name, desc = 'space indexed slalon', 'Space indexed waypoint slalom'
     def __init__(self):
         wps = np.array([[0, -3, 1.5],
                         [2, -2, 2.5],
@@ -185,21 +222,88 @@ class Traj44(Traj42):
         dyn_pts = [[0,0],[1., 0], [2.,0.1], [3.,0.2], [5.,0.7], [7.,0.8], [9., 1.], [10,1.]]
         super().__init__(wps, dyn_pts)
 
-    
+
+class Traj45(p_mt_dev.SpaceIndexedTraj):
+    name, desc = 'space indexed figure of height', 'Space indexed waypoint trajectory example 1'
+    def __init__(self, wps=None):
+        wps = wps or [[1.4,1.4,2], [0,0,2], [-1.4,-1.4,2], [-1,-3,2], [1,-3,2], [1.4,-1.4,2], [0,0,2], [-1.4,1.4,2], [-1,3,2], [1,3,2], [1.4,1.4,2]]
+        self.wps = np.array(wps)
+        self.wp_traj = p_mt_dev.SpaceWaypoints2(self.wps, bc="periodic")
+        self.duration = 10
+        self.dyn_traj = p_t1d.AffOne((0,0),(self.duration,1))
+        self.traj = p_mt_dev.SpaceIndexedTraj(self.wp_traj, self.dyn_traj)
+        super().__init__(self.wp_traj, self.dyn_traj)
+
+    def has_waypoints(self): return True
+    def get_waypoints(self): return self.wps
+
+class Traj46(Traj45):
+    name, desc = 'space indexed figure of height2', 'Space indexed waypoint trajectory example 2'
+    def __init__(self):
+        wps = [[1.4,-1.4,2], [0,0,2], [-1.4,1.4,2], [-3,1,2], [-3,-1,2], [-1.4,-1.4,2], [0,0,2], [1.4,1.4,2], [3,1,2], [3,-1,2], [1.4,-1.4,2]]
+        super().__init__(wps)
+
+class Traj47(Traj45):
+    name, desc = 'space indexed figure of height3', 'Space indexed waypoint trajectory example 3'
+    def __init__(self):
+        z = 2.
+        wps = [[1.4,1.4,z], [0,0,z], [-1.4,-1.4,z], [-3,-1,z], [-3,1,z], [-1.4,1.4,z], [0,0,z], [1.4,-1.4,z], [3,-1,z], [3,1,z], [1.4,1.4,z]]
+        super().__init__(wps)
+
+class Traj48(Traj45):
+    name, desc = 'space indexed oval', 'Space indexed waypoint example 4'
+    def __init__(self):
+        x1, x2, y1, y2, z = 0.8, 1.4, 1.2, 3., 2.
+        wps = [[x2,y1,z], [x2,-y1,z], [x1,-y2,z], [-x1,-y2,z], [-x2,-y1,z], [-x2,y1,z], [-x1,y2,z], [x1,y2,z], [x2,y1,z]]
+        super().__init__(wps)
+
+class Traj49(Traj45):
+    name, desc = 'space indexed oval2', 'Space indexed waypoint example 5'
+    def __init__(self):
+        x1, x2, y1, y2, z = 1.2, 3., 0.8, 1.4, 2.
+        wps = [[x1,y2,z], [-x1,y2,z], [-x2,y1,z], [-x2,-y1,z], [-x1,-y2,z], [x1,-y2,z], [x2,-y1,z], [x2,y1,z], [x1,y2,z]]
+        super().__init__(wps)
+
+        
 class TrajFactory:
-    trajectories = {}
+    _chapters = {}
+    _trajectories = {}
 
     @staticmethod
-    def register(T):
-        TrajFactory.trajectories[T.name] = T
+    def chapters(): return TrajFactory._chapters
     
-TrajFactory.register(Traj1)
-TrajFactory.register(Traj2)
-TrajFactory.register(Traj3)
-TrajFactory.register(Traj4)
-TrajFactory.register(Donut0)
-TrajFactory.register(Donut1)
-TrajFactory.register(Traj17)
-TrajFactory.register(Traj42)
-TrajFactory.register(Traj43)
-TrajFactory.register(Traj44)
+    @staticmethod
+    def get(name, chapter=None):
+        if chapter is None: return TrajFactory._trajectories[name]
+        else: return TrajFactory._chapters[chapter][name]
+    
+    @staticmethod
+    def register(T, chapter=None):
+        if chapter is not None:
+            try: TrajFactory._chapters[chapter]
+            except KeyError:
+                TrajFactory._chapters[chapter] = {}
+            TrajFactory._chapters[chapter][T.name] = T
+        TrajFactory._trajectories[T.name] = T
+    
+TrajFactory.register(Traj1, 'circles')
+TrajFactory.register(Traj2, 'circles')
+TrajFactory.register(Traj3, 'circles')
+TrajFactory.register(Traj4, 'circles')
+TrajFactory.register(Traj5, 'misc')
+TrajFactory.register(Traj6, 'misc')
+TrajFactory.register(Traj61, 'test_voliere')
+TrajFactory.register(Traj62, 'test_voliere')
+TrajFactory.register(Traj63, 'test_voliere')
+TrajFactory.register(Traj7, 'misc')
+TrajFactory.register(Donut0, 'misc')
+TrajFactory.register(Donut1, 'misc')
+TrajFactory.register(Traj17, 'misc')
+TrajFactory.register(Traj42, 'space index')
+TrajFactory.register(Traj43, 'space index')
+TrajFactory.register(Traj44, 'space index')
+TrajFactory.register(Traj45, 'space index')
+TrajFactory.register(Traj46, 'space index')
+TrajFactory.register(Traj47, 'space index')
+TrajFactory.register(Traj48, 'space index')
+TrajFactory.register(Traj49, 'space index')

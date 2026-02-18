@@ -9,6 +9,8 @@ from PySide6.QtGui import (QFont, QVector3D)
 
 logger = logging.getLogger(__name__)
 
+
+
 class ThreeDWidget(gl.GLViewWidget):
     def __init__(self, model=None):
         super().__init__()
@@ -17,29 +19,51 @@ class ThreeDWidget(gl.GLViewWidget):
         self.scene_items={}
         self.build_grid(model)
         self.build_frames()
-        if model is not None: # FIXME: remove that shity test
-            self.build_arena(model)
-            self.waypoints_item = None
-            self.waypoints_text_items = None
-            self.waypoints_line_item = None
-            self.traj_line_item = None
-            #self.display_new_trajectory(model)
+        if model is not None: self.build_arena(model)
 
         defaults = [('grid', True), ('arena', False) , ('frames', False)]
         for k, s in defaults:
             try: self.set_item_visible(k,s)
             except KeyError: pass
 
+        self.traj_items = []
         
-            
-        # https://github.com/mathworks/quadcopter-simulation-ros-gazebo/blob/master/Gazebo/meshes/quadrotor/quadrotor_2.stl
-        m = stl.mesh.Mesh.from_file('media/quadrotor_2.stl')
-        md = gl.MeshData(m.vectors)
-        self.quad_item = gl.GLMeshItem(meshdata=md, color=(0.17, 0.63, 0.17, 1))
-        self.addItem(self.quad_item)
-        self.show_quad(False)
+
+    def set_item_visible(self, what, state): self.scene_items[what].setVisible(state)
+    def is_item_visible(self, what): return self.scene_items[what].visible()
+    def show_quad(self, v, idx=0): self.traj_items[idx].show_quad(v)
+        
+    def build_triedra(self, parent, txt='', l=0.5, transform=np.eye(4)):
+        frame_item = gl.GLGraphicsItem.GLGraphicsItem(parent)
+        frame_item.setTransform(transform)
+        #glaxis = gl.GLAxisItem() # no luck
+        poss = [[[0,0,0], [l,0,0]], [[0,0,0], [0,l,0]], [[0,0,0], [0,0,l]]]
+        colors = [(1,0,0,1), (0,1,0,1), (0,0,1,1)]
+        for pos, col in zip(poss, colors):
+            gl.GLLinePlotItem(frame_item, pos=pos, color=col, width=3)
+        gl.GLTextItem(frame_item, pos=(0,0,l/2), text=txt, alignment=Qt.AlignCenter, font=QFont('Helvetica', 10))
 
 
+    def display_new_trajectory(self, model, idx=0, show_details=True, show_super_details=False):
+        logger.debug('in display_new_trajectory')
+        trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details)
+        if idx < len(self.traj_items):
+            self.traj_items[idx].remove(self)
+            self.traj_items[idx] = trj
+        else:
+            self.traj_items.append(trj)
+        
+    def update_plot(self, model, idx=0): 
+        logger.debug('in update_trajectory')
+        self.traj_items[idx].update(model.get_trajectory())
+
+    def set_quad_pose(self, Tenu2flu, idx=0):
+        self.traj_items[idx].set_quad_pose(Tenu2flu)
+    def set_ref_pose(self, Tenu2flu, idx=0):
+        self.traj_items[idx].set_ref_pose(Tenu2flu)
+    def update_vehicle_traj(self, Ys, idx=0):
+        self.traj_items[idx].update_vehicle_traj(Ys)
+ 
     def build_grid(self, model): # FIXME: needs love
         extends = model.extends if model is not None else ((-5, 5), (-5, 5), (0, 10.))
         grid_item = gl.GLGraphicsItem.GLGraphicsItem()
@@ -69,92 +93,89 @@ class ThreeDWidget(gl.GLViewWidget):
     def build_frames(self):
         frames_item = gl.GLGraphicsItem.GLGraphicsItem()
         self.addItem(frames_item)
-        self.build_triedra(frames_item, 'World (ENU)')
+        if 0:
+            T_enu2ned = np.array([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+            self.build_triedra(frames_item, 'World (NED)', 0.75, T_enu2ned)
+        else:
+            self.build_triedra(frames_item, 'World (ENU)')
         self.scene_items['frames'] = frames_item
         
-    def set_item_visible(self, what, state):
-        self.scene_items[what].setVisible(state)
 
-    def is_item_visible(self, what): return self.scene_items[what].visible()
+class TrajItem:
+    _colors = [(0.12, 0.47, 0.7 , 1),
+               (1.  , 0.5, 0.055, 1),
+               (0.17, 0.63, 0.17, 1)]
+    
+    def __init__(self, traj, parent, idx, show_details, show_super_details):
+        self.waypoints_item = None
+        self.waypoints_text_items = None
+        self.waypoints_line_item = None
+        self.traj_line_item = None
+        self.quad_item = None
+        self.real_quad_item = None
+        self.real_line_item = None
         
-    def show_quad(self, v): self.quad_item.setVisible(v)
-        
-    def build_triedra(self, parent, txt='', l=0.5, transform=np.eye(4)):
-        frame_item = gl.GLGraphicsItem.GLGraphicsItem(parent)
-        frame_item.setTransform(transform)
-        #glaxis = gl.GLAxisItem() # no luck
-        poss = [[[0,0,0], [l,0,0]], [[0,0,0], [0,l,0]], [[0,0,0], [0,0,l]]]
-        colors = [(1,0,0,1), (0,1,0,1), (0,0,1,1)]
-        for pos, col in zip(poss, colors):
-            gl.GLLinePlotItem(frame_item, pos=pos, color=col, width=3)
-        gl.GLTextItem(frame_item, pos=(0,0,l/2), text=txt, alignment=Qt.AlignCenter, font=QFont('Helvetica', 10))
 
-
-    def display_new_trajectory(self, model):
-        logger.debug('in display_new_trajectory')
-        if self.waypoints_item is not None: self.removeItem(self.waypoints_item)
-        if self.waypoints_line_item is not None: self.removeItem(self.waypoints_line_item)
-        if self.waypoints_text_items is not None:
-            for it in self.waypoints_text_items: self.removeItem(it)
-        if self.traj_line_item is not None: self.removeItem(self.traj_line_item)
-
-        _traj = model.get_trajectory()
-        if _traj.has_waypoints():
-            wps = _traj.get_waypoints()
-            color = np.empty((len(wps), 4)); color[:,0] = 1.; color[:,3] = 1
-            size = 0.2*np.ones(len(wps))
-            self.waypoints_item = gl.GLScatterPlotItem(pos=wps, size=size, color=color, pxMode=False)
-            self.addItem(self.waypoints_item)
-            self.waypoints_text_items = [gl.GLTextItem(pos=wp, text=f'{i+1}') for i, wp in enumerate(wps)]
-            for it in self.waypoints_text_items: self.addItem(it)
-            self.waypoints_line_item = gl.GLLinePlotItem(pos=wps, color=(0.12, 0.47, 0.7, 1), width=2., antialias=True)
-            self.addItem(self.waypoints_line_item)
-        else:
-            self.waypoints_item = None
-            self.waypoints_text_items = None
-            self.waypoints_line_item = None
-        _time, Ys = model.sample_output()
-        self.traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=(1., 0.5, 0.055, 1), width=2., antialias=True)
-        self.addItem(self.traj_line_item)
+        my_color = list(self._colors[idx])
+        my_color_faded = list(self._colors[idx]); my_color_faded[3]=0.5 
+        # quadrotor
+        m = stl.mesh.Mesh.from_file('media/quadrotor_2.stl')
+        md = gl.MeshData(m.vectors)
+        self.quad_item = gl.GLMeshItem(meshdata=md, color=my_color)
+        parent.addItem(self.quad_item)
+        self.quad_item.setVisible(False)
+        self.ref_quad_item = gl.GLMeshItem(meshdata=md, color=my_color_faded, edgeColor=my_color_faded,
+                                           drawEdges=True, drawFaces=False )
+        parent.addItem(self.ref_quad_item)
+        self.ref_quad_item.setVisible(True)
         
-    #def draw_trajectory(self, model):
-        #wps = model.wps
-        #size = 0.2*np.ones(len(wps))
-        #color = np.empty((len(wps), 4))
-        #color[:,0] = 1.; color[:,3] = 1
-        #self.wps = gl.GLScatterPlotItem(pos=wps, size=size, color=color, pxMode=False)
-        #self.addItem(self.wps)
-        #self.wp_texts = [gl.GLTextItem(pos=wp, text=f'{i+1}') for i, wp in enumerate(wps)]
-        #for t in self.wp_texts: self.addItem(t)
-        #1f77b4, ff7f0e, 2ca02c
-        #colors = [(0.12, 0.47, 0.7, 1), (1., 0.5, 0.05, 1), (0.17, 0.63, 0.17, 1)]
-        
-        #self.line_traj = gl.GLLinePlotItem(pos=wps, color=(0.12, 0.47, 0.7, 1), width=2., antialias=True)
-        #self.addItem(self.line_traj)
+        # waypoints
+        if traj.has_waypoints():
+            if show_details:
+                wps = traj.get_waypoints()
+                color = np.empty((len(wps), 4)); color[:,0] = 1.; color[:,3] = 1
+                size = 0.1*np.ones(len(wps))
+                self.waypoints_item = gl.GLScatterPlotItem(pos=wps, size=size, color=color, pxMode=False)
+                parent.addItem(self.waypoints_item)
+                _al = Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom
+                self.waypoints_text_items = [gl.GLTextItem(pos=wp, text=f'{i+1}', alignment=_al) for i, wp in enumerate(wps)]
+                for it in self.waypoints_text_items: parent.addItem(it)
+            if show_super_details:
+                self.waypoints_line_item = gl.GLLinePlotItem(pos=wps, color=self._colors[idx], width=2., antialias=True)
+                parent.addItem(self.waypoints_line_item)
 
-        #ls, Y = model.sample_output()
-        #self.line_traj_smoothed = gl.GLLinePlotItem(pos=Y[:,:3,0], color=(1., 0.5, 0.055, 1), width=2., antialias=True)
-        #self.addItem(self.line_traj_smoothed)
-        
-    def update_plot(self, model): 
-        logger.debug('in update_trajectory')
+        time = np.linspace(0, traj.duration, 1000)
+        Ys = np.array([traj.get(t) for t in time])
+        self.ref_traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=my_color, width=3., antialias=True, mode='lines')
+        parent.addItem(self.ref_traj_line_item)
+        self.traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=my_color_faded, width=2., antialias=True)
+        parent.addItem(self.traj_line_item)
+
+    def update(self, traj):
         if self.waypoints_item is not None:
-            wps = model.get_waypoints()
+            wps = traj.get_waypoints()
             self.waypoints_item.setData(pos=wps)
             for wp, wpi in zip(wps, self.waypoints_text_items): wpi.setData(pos=wp)
-            self.waypoints_line_item.setData(pos=wps)
-        time, Y = model.sample_output()
-        self.traj_line_item.setData(pos=Y[:,:3,0])
+            if self.waypoints_line_item is not None: self.waypoints_line_item.setData(pos=wps)
+        time = np.linspace(0, traj.duration, 1000)
+        Ys = np.array([traj.get(t) for t in time])
+        self.ref_traj_line_item.setData(pos=np.zeros((1,3)))
 
-    # def _draw_trajectory(self, Y):  # FIXME: merge with redraw... figure waypoints
-    #     try: self.line_traj_smoothed
-    #     except AttributeError:
-    #         self.line_traj_smoothed = gl.GLLinePlotItem(pos=Y[:,:3,0], color=(1., 0.5, 0.055, 1), width=3., antialias=True)
-    #         self.addItem(self.line_traj_smoothed)
-            
-    #     self.line_traj_smoothed.setData(pos=Y[:,:3,0])
+    def update_ref_traj(self, traj): return self.update(traj)  # FIXME: update that :)
+    def update_vehicle_traj(self, Ys):
+        self.traj_line_item.setData(pos=Ys)
+
         
-    def set_quad_pose(self, Y, rmat):
-        T = np.eye(4); T[:3,3] = Y[:3,0]
-        T[:3,:3] = rmat
-        self.quad_item.setTransform(pg.Transform3D(T))
+    def remove(self, parent):
+        if self.waypoints_item is not None: parent.removeItem(self.waypoints_item)
+        if self.waypoints_line_item is not None: parent.removeItem(self.waypoints_line_item)
+        if self.waypoints_text_items is not None:
+            for it in self.waypoints_text_items: parent.removeItem(it)
+        parent.removeItem(self.ref_traj_line_item)
+        parent.removeItem(self.quad_item)
+
+    def set_quad_pose(self, Tenu2flu):
+        self.quad_item.setTransform(pg.Transform3D(Tenu2flu))
+    def set_ref_pose(self, Tenu2flu):
+        self.ref_quad_item.setTransform(pg.Transform3D(Tenu2flu))
+    def show_quad(self, v): self.quad_item.setVisible(v)

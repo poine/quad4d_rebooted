@@ -33,7 +33,7 @@ class ProjView(FigureCanvas):
         self.markers_moved_cbk = cbk
         self.line_traj = self.__ax.plot([],[])[0]
 
-    def display_new_trajectory(self, model):
+    def display_new_trajectory(self, model, replace_idx=0):
         logger.debug('  in display_new_trajectory')
         for m in self.markers_waypoints: m.remove()
         self.markers_waypoints = []
@@ -46,7 +46,7 @@ class ProjView(FigureCanvas):
             self.line_waypoints.set_data(wps[:,self.ix], wps[:,self.iy])
         else:
             self.line_waypoints.set_data([],[])
-        _time, Ys = model.sample_output()
+        _time, Ys = model.sample_traj_output()
         self.line_traj.set_data(Ys[:,self.ix,0], Ys[:,self.iy,0])
         self.__ax.set(xlim=model.extends[self.ix], ylim=model.extends[self.iy])
         #self.__ax.relim()
@@ -64,12 +64,13 @@ class TopView(ProjView):
         super().__init__(0, 1, 'Top', 'x in m (East)', 'y in m (North)', cbk) 
 
 class FrontView(ProjView):
-   def __init__(self, cbk):
-        super().__init__(0, 2, 'Front', 'x in m (East)', 'z in m (Up)', cbk) 
-            
-class RightView(ProjView):
     def __init__(self, cbk):
-        super().__init__(1, 2, 'Right', 'y in m (North)', 'z in m (Up)', cbk)   
+        super().__init__(1, 2, 'Front', 'y in m (North)', 'z in m (Up)', cbk)   
+
+class LeftView(ProjView):
+   def __init__(self, cbk):
+        super().__init__(0, 2, 'Left', 'x in m (East)', 'z in m (Up)', cbk) 
+            
         
 
 class Window(QWidget):
@@ -81,8 +82,8 @@ class Window(QWidget):
         layout = QGridLayout() 
         layout.setContentsMargins(0,0,0,0)
         layout.setSpacing(0)
-        self.views = [_V(self.on_wp_moved) for _V in [TopView, FrontView, RightView]]
-        poss = [(0,0), (1,0), (1,1)]
+        self.views = [_V(self.on_wp_moved) for _V in [TopView, FrontView, LeftView]]
+        poss = [(0,1), (1,1), (1,0)]
         for v, pos in zip(self.views, poss): layout.addWidget(v, *pos)
         self.setLayout(layout)
 
@@ -99,13 +100,13 @@ class Window(QWidget):
         wps[:,view.iy] = proj_wps[:,1]
         self.controller.on_geom_waypoint_moved(wps)
 
-    def display_new_trajectory(self, model):
+    def display_new_trajectory(self, model, idx=0):
         logger.debug(' in display_new_trajectory')
         for v in self.views: v.display_new_trajectory(model)
 
     def update_plot(self, model):
         wps = model.get_waypoints()
-        time, Y = model.sample_output()
+        time, Y = model.sample_traj_output()
         for v in self.views: v.refresh(wps, Y)
         
         

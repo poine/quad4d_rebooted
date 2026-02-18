@@ -1,0 +1,58 @@
+# install
+
+python3 -m venv /home/poine/venv_quad4d
+
+source /home/poine/venv_quad4d/bin/activate
+
+pip3 install pyyaml numpy scipy matplotlib pyside6 numpy_stl pyqtgraph pyopengl ivy-python lxml
+
+ln -s /home/poine/work/quad4d_rebooted/src/qt_gui/org.nongnu.paparazzi.clicknfly.desktop ~/.local/share/applications/
+
+
+
+# TODO
+
+ - //full state chronogram
+ - display several trajectories
+ - change parameters
+ - remote control
+ - safety check
+ - psi trajectory that remains facing forward?
+ - (space index) optimization
+
+
+
+## remote control
+
+
+/home/poine/work/pat/murat/pprzlink
+
+export PYTHONPATH=$PYTHONPATH:/home/poine/work/pat/murat/
+
+/home/poine/work/kalmans/paparazzi
+export PYTHONPATH=$PYTHONPATH:/home/poine/work/kalmans/paparazzi/sw/lib/python
+
+
+## optimization
+
+"how to write a cost function for passing gates waypoint"
+
+Time-Optimal Planning for Quadrotor Waypoint Flight:
+   https://rpg.ifi.uzh.ch/docs/ScienceRobotics21_Foehn.pdf
+Time-Optimal Gate-Traversing Planner for Autonomous Drone Racing
+   https://arxiv.org/html/2309.06837v3
+
+
+## misc
+
+quad stl 
+# https://github.com/mathworks/quadcopter-simulation-ros-gazebo/blob/master/Gazebo/meshes/quadrotor/quadrotor_2.stl
+
+
+# https://koor.fr/Python/SupportPythonQt/slide1.wp
+# https://www.pythonguis.com/pyqt6-tutorial/
+
+
+hoop112, mayaindoor
+
+https://www.baeldung.com/linux/desktop-entry-files

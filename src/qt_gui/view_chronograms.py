@@ -36,17 +36,17 @@ class SpaceIndexedChronogram(FigureCanvas):
         if traj.has_dyn_ctl_pts():
             dyn_ctl_pts = traj.get_dyn_ctl_pts()
             self.line_marker_dyn.set_data(dyn_ctl_pts[:,0], dyn_ctl_pts[:,1])
-        time, smtd_dyn_pts = model.sample_dynamics()
+        time, smtd_dyn_pts = model.sample_traj_dynamics()
         self.line_dyn.set_data(time, smtd_dyn_pts[:,0])
         mu.autoscale_axis(self.axes[1], time, smtd_dyn_pts[:,0])
-        time, comp_pts =  model.sample_output()
+        time, comp_pts =  model.sample_traj_output()
         for i in range(3): self.lines_comp[i].set_data(time, comp_pts[:,i,0])
         mu.autoscale_axis(self.axes[2], time, comp_pts[:,:,0]);
         #self.axes[1].relim(); self.axes[2].relim()
         self.draw()
         
     def draw_geometry(self, model):
-        ls, pts_geom = model.sample_geometry()
+        ls, pts_geom = model.sample_traj_geometry()
         for i in range(3): self.lines_geom[i].set_data(ls, pts_geom[:,i,0])
         mu.autoscale_axis(self.axes[0], ls, pts_geom[:,:,0]); self.draw()
         #self.axes[0].relim(); self.draw() # !!!! WTF!!!!
@@ -55,13 +55,13 @@ class SpaceIndexedChronogram(FigureCanvas):
         self.draw_geometry(model)
         self._draw(model)
         
-    def display_new_trajectory(self, model):
-        print(' #SpaceIndexedChronogram::display_new_trajectory')
+    def display_new_trajectory(self, model, idx=0):
+        logger.debug(' #SpaceIndexedChronogram::display_new_trajectory')
         for m in self.markers_dyn: m.remove()
         self.markers_dyn = []
         traj = model.get_trajectory()
         if traj.has_dyn_ctl_pts():
-            dyn_ctl_pts = model.trajectory.get_dyn_ctl_pts()
+            dyn_ctl_pts = traj.get_dyn_ctl_pts()
             self.markers_dyn = [mu.DraggableMarker(self.axes[1], p, f'{i+1}', self.markers_cbk, None, (0,1)) for i, p in enumerate(dyn_ctl_pts)]
         self.update_plot(model)
                      
@@ -87,8 +87,8 @@ class SiChronoWindow(QWidget):
         marker_pos = np.array([p.get_center() for p in self.si_chrono_view.markers_dyn])
         self.controller.on_dyn_ctl_point_moved(marker_pos)
 
-    def display_new_trajectory(self, model):
-        self.si_chrono_view.display_new_trajectory(model)
+    def display_new_trajectory(self, model, idx=0):
+        self.si_chrono_view.display_new_trajectory(model, idx)
 
     def update_plot(self, model): self.si_chrono_view.update_plot(model)
     
@@ -109,15 +109,14 @@ class OutputChronogram(FigureCanvas):
                 self.lines[d, c] = self.axes[d,c].plot([],[])[0]
                 
     # no difference between new trajectory and update
-    def display_new_trajectory(self, model):
-        print(' #OutputChronogram::display_new_trajectory')
-        self.update_plot(model)
+    def display_new_trajectory(self, model, replace_idx=0):
+        logger.debug(' #OutputChronogram::display_new_trajectory')
+        self.update_plot(model, replace_idx)
 
-    def update_plot(self, model):
-        time, Y = model.sample_output()
+    def update_plot(self, model, idx):
+        time, Y = model.sample_traj_output()
         for d in range(p_mt._nder):
             for c in range(p_mt._ylen):
-                #self.axes[d,c].plot(time, Y[:,c,d])
                 self.lines[d, c].set_data(time, Y[:,c,d])
                 #self.axes[d,c].relim()
                 mu.autoscale_axis(self.axes[d,c], time, Y[:,c,d])
@@ -126,8 +125,7 @@ class OutputChronogram(FigureCanvas):
             
 class StateChronogram(FigureCanvas):
     def __init__(self):
-        super().__init__(Figure(figsize=(12, 10)))
-        self.figure.tight_layout()# FIXME, not working, large margins :(
+        super().__init__(Figure(figsize=(12, 10), layout='tight'))
         self.axes = ax1, ax2, ax3 = self.figure.subplots(3,1, sharex=True)
 
         self.lines_pos = [ax1.plot([],[], label=l)[0] for l in ['x', 'y', 'z']]
@@ -140,20 +138,69 @@ class StateChronogram(FigureCanvas):
         mu.decorate(ax3, title='Attitude', xlab='time in s', ylab='degres', legend=True, grid=True)
 
     # no difference between new trajectory and update
-    def display_new_trajectory(self, model):
-        print(' #StateChronogram::display_new_trajectory')
-        self.update_plot(model)
+    def display_new_trajectory(self, model, replace_idx=0):
+        logger.debug(' StateChronogram::display_new_trajectory')
+        self.update_plot(model, replace_idx)
         
-    def update_plot(self, model):
-        time, pos, vel, euler = model.sample_state()
+    def update_plot(self, model, idx):
+        time, pos, vel, euler, rvel = model.sample_traj_state(idx)
         for i in range(3): self.lines_pos[i].set_data(time, pos[:,i])
-        self.line_vel.set_data( time, vel)
-        for i in range(2): self.lines_att[i].set_data(time, np.rad2deg(euler[:,i]))
-        for ax in self.axes: ax.relim()
+        nvel = np.linalg.norm(vel, axis=1)
+        self.line_vel.set_data( time, nvel)
+        euler_deg = np.rad2deg(euler)
+        for i in range(2): self.lines_att[i].set_data(time, euler_deg[:,i])
+        #for ax in self.axes: ax.relim()
         #self.draw()
-        mu.autoscale_axis(self.axes[1], time, vel)
+        mu.autoscale_axis(self.axes[0], time, pos)
+        mu.autoscale_axis(self.axes[1], time, nvel)
+        mu.autoscale_axis(self.axes[2], time, euler_deg)
         self.draw()   
 
+
+class FullStateChronogram(FigureCanvas):
+    def __init__(self):
+        super().__init__(Figure(figsize=(12, 10), layout='tight'))
+        self.axes = self.figure.subplots(4,3, sharex=True)
+        self.lines = [[], []]
+        for ax, t in zip(self.axes[0], ['$x$', '$y$', '$z$']):
+            mu.decorate(ax, title=t, ylab='m', legend=True, grid=True)
+        for ax, t in zip(self.axes[1], ['$\\dot{x}$', '$\\dot{y}$', '$\\dot{z}$']):
+            mu.decorate(ax, title=t, ylab='m/s', legend=True, grid=True)
+        for ax, t in zip(self.axes[2], ['$\\phi$', '$\\theta$', '$\\psi$']):
+            mu.decorate(ax, title=t, ylab='deg', legend=True, grid=True)
+        for ax, t in zip(self.axes[3], ['$p$', '$q$', '$r$']):
+            mu.decorate(ax, title=t, xlab='time in s', ylab='deg/s', legend=True, grid=True)
+
+    def display_new_trajectory(self, model, idx=0):
+        logger.debug(f' #FullStateChronogram::display_new_trajectory {idx}')
+        self.lines[idx] = [[ax.plot([],[], label=f'drone {idx+1}')[0] for ax in raxes] for raxes in self.axes]
+        self.axes[0][0].legend()
+        self.update_plot(model, idx)
+
+    def add_new_trajectory(self, model):
+        pass
+    
+    def update_plot(self, model, idx=0):
+        time, pos, vel, euler, rvel = model.sample_traj_state(idx)
+        euler, rvel = [np.rad2deg(v) for v in [euler, rvel]]
+        for c in range(3):
+            self.lines[idx][0][c].set_data(time, pos[:,c])
+            self.lines[idx][1][c].set_data(time, vel[:,c])
+            self.lines[idx][2][c].set_data(time, euler[:,c])
+            self.lines[idx][3][c].set_data(time, rvel[:,c])
+        use_relim = True
+        if use_relim:
+            for ax in self.axes.flatten():
+                ax.relim()
+                mu.ensure_min_ylim(ax, span=0.05) # breaks relim???
+        else:
+            for c in range(3):
+                mu.autoscale_axis(self.axes[0,c], time, pos[:,c])
+                mu.autoscale_axis(self.axes[1,c], time, vel[:,c])
+                mu.autoscale_axis(self.axes[2,c], time, euler[:,c])
+                mu.autoscale_axis(self.axes[3,c], time, rvel[:,c])
+        self.draw()       
+        
 # pack some plot into a QWidget
 class ChronogramWindow(QWidget):
     closed = Signal()
@@ -170,7 +217,7 @@ class ChronogramWindow(QWidget):
         self.closed.emit()
         super().closeEvent(event)
         
-    def update_plot(self, model): self._chronogram.update_plot(model)
+    def update_plot(self, model, idx=0): self._chronogram.update_plot(model, idx)
 
-    def display_new_trajectory(self, model):
-        self._chronogram.display_new_trajectory(model)
+    def display_new_trajectory(self, model, idx=0):
+        self._chronogram.display_new_trajectory(model, idx)

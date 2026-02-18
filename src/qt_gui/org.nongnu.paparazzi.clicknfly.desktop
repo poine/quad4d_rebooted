@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=ClicknFly
+GenericName=Drone flight director
+Keywords=drone;demonstration
+Comment=Click and Fly is Not whatever
+Exec=/home/poine/work/quad4d_rebooted/src/qt_gui/test_guided.py
+Icon=/home/poine/src/paparazzi/conf/system/launcher/logo.png
+Terminal=true
+StartupWMClass=python3
+Type=Application
+Categories=GNOME;Drone
