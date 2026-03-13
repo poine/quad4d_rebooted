@@ -30,21 +30,22 @@ class MainWindow(QMainWindow):
         self.model, self.controller = model, controller
 
         self.views = {}
-        self.threed_view = self.views['3D'] = view_three_d.ThreeDWidget(model)
-        self.setCentralWidget(self.threed_view)
+        self.views['3D'] = view_three_d.ThreeDWidget(model)
+        self.setCentralWidget(self.views['3D'])
         
-        self.geometry_window = self.views['geometry'] = view_geom.Window(model, controller)
-        self.output_chronogram_window = self.views['output_chrono'] = view_chrono.ChronogramWindow(view_chrono.OutputChronogram, 'Output Chronograms')
+        self.views['geometry'] = view_geom.Window(model, controller)
+        self.views['output_chrono'] = view_chrono.ChronogramWindow(view_chrono.OutputChronogram, 'Output Chronograms')
         # model and controller not passed to constructor...
-        #self.space_indexed_window = view_chrono.ChronogramWindow(view_chrono.SpaceIndexedChronogram, 'Space Indexed Chronograms')
-        self.space_idx_chronogram_window = self.views['si_chrono'] = view_chrono.SiChronoWindow(self.model, self.controller)
-        self.state_chronogram_window = self.views['state_chrono'] = view_chrono.ChronogramWindow(view_chrono.StateChronogram, 'State Chronograms')
-        self.full_state_chronogram_window = self.views['full_state_chrono'] = view_chrono.ChronogramWindow(view_chrono.FullStateChronogram, 'Full State Chronogram')
+        #self.views['si_chrono'] = view_chrono.ChronogramWindow(view_chrono.SpaceIndexedChronogram, 'Space Indexed Chronograms')
+        self.views['si_chrono'] = view_chrono.SiChronoWindow(self.model, self.controller)
+        self.views['state_chrono'] = view_chrono.ChronogramWindow(view_chrono.StateChronogram, 'State Chronograms')
+        self.views['full_state_chrono'] = view_chrono.ChronogramWindow(view_chrono.FullStateChronogram, 'Full State Chronogram')
         for k in self.views:
             if k!='3D': self.views[k].closed.connect(partial(self.on_child_closed, which=k))
         
         self.build_window(model, controller)
-        self.display_new_trajectory(model, 0, show_quad=False)
+        for i in range(model.trajectory_nb()):
+                       self.display_new_trajectory(model, i, show_quad=False)
         
     def on_child_closed(self, which):
         logger.debug(f'in on_child_closed {which}')
@@ -73,7 +74,7 @@ class MainWindow(QMainWindow):
         self.build_view_menu(self.menu)
 
         self.drone_menus = []
-        self.add_drone_menu(model, 0)
+        for i in range(model.trajectory_nb()): self.add_drone_menu(model, i)
         
         self.setStatusBar(QStatusBar(self))
 
@@ -82,10 +83,20 @@ class MainWindow(QMainWindow):
         traj_menu = menu.addMenu("&Trajectory")
 
         traj_submenu = traj_menu.addMenu("Add drone")  # list trajectories available in factory
-        for traj in traj_factory.TrajFactory._trajectories.keys():
-            action = QAction(traj, self)
-            action.triggered.connect(partial(self.controller.load_from_factory, which=traj, idx=None))
-            traj_submenu.addAction(action)
+        if 0:
+            for traj in traj_factory.TrajFactory._trajectories.keys():
+                action = QAction(traj, self)
+                action.triggered.connect(partial(self.controller.load_from_factory, which=traj, idx=None))
+                traj_submenu.addAction(action)
+        else:
+            chapters = traj_factory.TrajFactory.chapters()
+            for chapt in chapters.keys():
+                chapt_submenu = traj_submenu.addMenu(chapt)
+                for traj in chapters[chapt].keys():
+                    traj_action = QAction(traj, self)
+                    chapt_submenu.addAction(traj_action)
+                    traj_action.triggered.connect(partial(self.controller.load_from_factory, which=traj, idx=None))
+                
             
         action_export_to_csv = QAction("Export to CSV", self)
         action_export_to_csv.triggered.connect(self.show_csv_export_dialog)
@@ -113,15 +124,6 @@ class MainWindow(QMainWindow):
     def build_view_menu(self, menu):
         view_menu = menu.addMenu("&View")
 
-        three_d_submenu = view_menu.addMenu("3D view")
-        def add_3dview_item_visible_action(description, item_key):
-            action = QAction(description, self)
-            action.setCheckable(True); action.setChecked(self.threed_view.is_item_visible(item_key))
-            action.triggered.connect(partial(self.on_three_d_set_item_visible, src=action, what=item_key))
-            three_d_submenu.addAction(action)
-        for d,i in zip(['Show Grid', 'Show Arena Boundaries', 'Show Frames'], ['grid', 'arena', 'frames']):
-            add_3dview_item_visible_action(d, i)
-        
         self.show_view_actions = {}
         def add_show_wiew_action(desc, cbk, key):
             action = QAction(desc, self); action.setCheckable(True)
@@ -135,9 +137,19 @@ class MainWindow(QMainWindow):
                       ("View State Chronogram", self.show_state_chronogram, 'state_chrono'),
                       ("View Full State Chronogram", self.show_full_state_chronogram, 'full_state_chrono')]:
             add_show_wiew_action(d, c, k)
+
+        three_d_submenu = view_menu.addMenu("3D view")
+        def add_3dview_item_visible_action(description, item_key):
+            action = QAction(description, self)
+            action.setCheckable(True); action.setChecked(self.views['3D'].is_item_visible(item_key))
+            action.triggered.connect(partial(self.on_three_d_set_item_visible, src=action, what=item_key))
+            three_d_submenu.addAction(action)
+        for d,i in zip(['Show Grid', 'Show Arena Boundaries', 'Show Frames'], ['grid', 'arena', 'frames']):
+            add_3dview_item_visible_action(d, i)
+        
         
     def on_three_d_set_item_visible(self, src, what):
-        self.threed_view.set_item_visible(what, src.isChecked())
+        self.views['3D'].set_item_visible(what, src.isChecked())
         
     def toggle_aux_window(self, key, state):
         aux_window = self.views[key]
@@ -204,8 +216,8 @@ class MainWindow(QMainWindow):
 
     def show_animation(self, v):
         for idx in range(self.model.trajectory_nb()):
-            self.threed_view.show_quad(v, idx)
+            self.views['3D'].show_quad(v, idx)
                 
     def draw_current_pose(self, elapsed, Tenu2fru, idx):
         self.anim_label.setText(f'{elapsed:>4.1f}/{self.model.get_trajectory().duration:.1f}s')
-        self.threed_view.set_quad_pose(Tenu2fru, idx)
+        self.views['3D'].set_quad_pose(Tenu2fru, idx)

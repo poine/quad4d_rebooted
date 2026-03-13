@@ -53,15 +53,23 @@ class Traj63(p_mt.CircleWithIntro):
     def __init__(self):
         super().__init__(Y0=[0.5, 0.5, 2., 0], c=[1, 0, 3.],
                          r=2., v=1., dt_intro=5., dt_stay=5., psit=p_t1d.CstOne(0.))
-
-
-
         
 class Traj7(p_mt.Oval):
     name, desc = 'oval', 'oval'
     def __init__(self):
         super().__init__(l=2, r=1.5, v=2., z=2)
 
+# collision avoidance
+class Traj81(p_mt.SmoothBackAndForth):
+    name, desc = 'smooth_back_and_forth1', 'smooth back and forth north/south'
+    def __init__(self):
+        super().__init__(Y0=[-2, 0, 2.5, 0], Y1=[2, 0, 2.5, 0], dt_move=4.)
+        
+class Traj82(p_mt.SmoothBackAndForth):
+    name, desc = 'smooth_back_and_forth2', 'smooth back and forth west/east'
+    def __init__(self):
+        super().__init__(Y0=[0, -2, 2.5, 0], Y1=[0, 2, 2.5, 0], dt_move=4.)
+        
         
 class Donut0(p_mt.Trajectory):
     name, desc = 'donut', 'quad4d rebooted: donut'
@@ -295,7 +303,13 @@ TrajFactory.register(Traj6, 'misc')
 TrajFactory.register(Traj61, 'test_voliere')
 TrajFactory.register(Traj62, 'test_voliere')
 TrajFactory.register(Traj63, 'test_voliere')
+
 TrajFactory.register(Traj7, 'misc')
+
+TrajFactory.register(Traj81, 'test_optim')
+TrajFactory.register(Traj82, 'test_optim')
+
+
 TrajFactory.register(Donut0, 'misc')
 TrajFactory.register(Donut1, 'misc')
 TrajFactory.register(Traj17, 'misc')

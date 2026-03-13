@@ -44,9 +44,10 @@ class ThreeDWidget(gl.GLViewWidget):
         gl.GLTextItem(frame_item, pos=(0,0,l/2), text=txt, alignment=Qt.AlignCenter, font=QFont('Helvetica', 10))
 
 
-    def display_new_trajectory(self, model, idx=0, show_details=True, show_super_details=False):
+    def display_new_trajectory(self, model, idx=0, show_details=True, show_super_details=False,
+                               show_quad=True, show_ref_quad=False):
         logger.debug('in display_new_trajectory')
-        trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details)
+        trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details, show_quad, show_ref_quad)
         if idx < len(self.traj_items):
             self.traj_items[idx].remove(self)
             self.traj_items[idx] = trj
@@ -55,7 +56,7 @@ class ThreeDWidget(gl.GLViewWidget):
         
     def update_plot(self, model, idx=0): 
         logger.debug('in update_trajectory')
-        self.traj_items[idx].update(model.get_trajectory())
+        self.traj_items[idx].update(model.get_trajectory(idx))
 
     def set_quad_pose(self, Tenu2flu, idx=0):
         self.traj_items[idx].set_quad_pose(Tenu2flu)
@@ -106,7 +107,7 @@ class TrajItem:
                (1.  , 0.5, 0.055, 1),
                (0.17, 0.63, 0.17, 1)]
     
-    def __init__(self, traj, parent, idx, show_details, show_super_details):
+    def __init__(self, traj, parent, idx, show_details, show_super_details, show_quad=False, show_ref_quad=False):
         self.waypoints_item = None
         self.waypoints_text_items = None
         self.waypoints_line_item = None
@@ -123,11 +124,11 @@ class TrajItem:
         md = gl.MeshData(m.vectors)
         self.quad_item = gl.GLMeshItem(meshdata=md, color=my_color)
         parent.addItem(self.quad_item)
-        self.quad_item.setVisible(False)
+        self.show_quad(show_quad)
         self.ref_quad_item = gl.GLMeshItem(meshdata=md, color=my_color_faded, edgeColor=my_color_faded,
                                            drawEdges=True, drawFaces=False )
         parent.addItem(self.ref_quad_item)
-        self.ref_quad_item.setVisible(True)
+        self.show_ref_quad(show_ref_quad)
         
         # waypoints
         if traj.has_waypoints():
@@ -148,7 +149,7 @@ class TrajItem:
         Ys = np.array([traj.get(t) for t in time])
         self.ref_traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=my_color, width=3., antialias=True, mode='lines')
         parent.addItem(self.ref_traj_line_item)
-        self.traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=my_color_faded, width=2., antialias=True)
+        self.traj_line_item = gl.GLLinePlotItem(pos=np.zeros((1,3)), color=my_color_faded, width=2., antialias=True)
         parent.addItem(self.traj_line_item)
 
     def update(self, traj):
@@ -159,7 +160,7 @@ class TrajItem:
             if self.waypoints_line_item is not None: self.waypoints_line_item.setData(pos=wps)
         time = np.linspace(0, traj.duration, 1000)
         Ys = np.array([traj.get(t) for t in time])
-        self.ref_traj_line_item.setData(pos=np.zeros((1,3)))
+        self.ref_traj_line_item.setData(pos=Ys[:,:3,0])
 
     def update_ref_traj(self, traj): return self.update(traj)  # FIXME: update that :)
     def update_vehicle_traj(self, Ys):
@@ -179,3 +180,4 @@ class TrajItem:
     def set_ref_pose(self, Tenu2flu):
         self.ref_quad_item.setTransform(pg.Transform3D(Tenu2flu))
     def show_quad(self, v): self.quad_item.setVisible(v)
+    def show_ref_quad(self, v): self.ref_quad_item.setVisible(v)

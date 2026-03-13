@@ -115,7 +115,7 @@ class Model:
     def set_dynamics(self, dyn_ctl_pts):
         self.dyn_ctl_pts = dyn_ctl_pts 
         dyn_segments = [ptrj_1d.AffOne(dyn_ctl_pts[i], dyn_ctl_pts[i+1]) for i in range(len(dyn_ctl_pts)-1)]
-        self.smoothed_dyn = ptrj_1d.SmoothedCompositeOne(dyn_segments, eps=1.)
+        self.smoothed_dyn = ptrj_1d.SmoothedCompositeOne(dyn_segments, eps=0.75)
         self.comp_traj = ptrj_dev.SpaceIndexedTraj(self.geom, self.smoothed_dyn)
 
     def sample_geometry(self, npts=1000):

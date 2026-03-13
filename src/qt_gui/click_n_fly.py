@@ -11,6 +11,7 @@ from PySide6.QtCore import QRunnable, QThreadPool, QTimer, Slot
 
 import traj_factory, misc_utils as mu
 import view_three_d as vtd, model
+import scenarios as cnf_scen
 
 from pprz_connect import PprzConnect
 from pprzlink.message import PprzMessage
@@ -49,7 +50,7 @@ class MainWindow(QMainWindow):
         self.resize(1280,900)
         self.tdw = vtd.ThreeDWidget()
         for i in range(len(ids)):
-            self.tdw.display_new_trajectory(model, i, False); self.tdw.show_quad(True, idx=i)
+            self.tdw.display_new_trajectory(model, i, show_details=False, show_quad=True, show_ref_quad=True)
         self.setCentralWidget(self.tdw)
 
         self.dialog = GuidanceDialog(self, controller.on_guide_clicked)
@@ -68,29 +69,32 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-class Worker(QRunnable):
-    def __init__(self, trajectory, traj_manager, dt=1./10):
-        super().__init__()
+# class Worker(QRunnable):
+#     def __init__(self, trajectory, traj_manager, dt=1./10):
+#         super().__init__()
         
-    @Slot()
-    def run(self):
-        time.sleep(1)
-        print('worker exiting')
+#     @Slot()
+#     def run(self):
+#         time.sleep(1)
+#         print('worker exiting')
 
 
 DroneStatus = Enum('DroneStatus', [('UNKNOWN', 1), ('CONNECTED', 2), ('READY', 3), ('CRUISING', 4), ('ARRIVED', 5)])
 class Drone:
-    def __init__(self, conf, ivy):
-        self.conf = conf
-        self.settings = PprzSettingsManager(conf.settings, conf.id, ivy)
-        self.guided = GuidedMode(ivy)
-        self.status = DroneStatus.CONNECTED
+    def __init__(self):
         self.T, self.Tref = [np.eye(4)]*2
         self.Y, self.Yref = [np.zeros((4,5))]*2
         self.vehicle_traj = []
         self.vehicle_traj_max_len, self.vehicle_traj_increment = 1000, 100
         # maybe? https://github.com/eric-wieser/numpy_ringbuffer/blob/master/numpy_ringbuffer/__init__.py
+        self.status = DroneStatus.UNKNOWN
 
+    def connect(self, conf, ivy):
+        self.conf = conf
+        self.settings = PprzSettingsManager(conf.settings, conf.id, ivy)
+        self.guided = GuidedMode(ivy)
+        self.status = DroneStatus.CONNECTED
+        
     def take_control(self):
         self.settings['auto2'] = 'Guided'
         self.guided.move_at_ned_vel(self.conf.id) # set zero speed
@@ -128,6 +132,8 @@ class FlightDirector:
         self.pprz_connect.ivy.subscribe(self.on_pprz_flight_param, PprzMessage("telemetry", "ROTORCRAFT_FP"))
         self.status = FDStatus.STAGING
         self.ids, self.acs = ids, {}
+        for _id in self.ids:
+            self.acs[_id] = Drone()
         self.t0 = 0.
         
     def run(self): # for now called from GUI thread, maybe use our own thread?
@@ -157,7 +163,7 @@ class FlightDirector:
 
     def on_pprz_connect(self, conf):
         logger.debug(f'{conf.id} ({conf.name}) connected')
-        self.acs[int(conf.id)] = Drone(conf, self.pprz_connect.ivy)
+        self.acs[int(conf.id)].connect(conf, self.pprz_connect.ivy)
         self.acs[int(conf.id)].take_control()
         
     def on_pprz_flight_param(self, sender, msg):
@@ -173,46 +179,34 @@ class FlightDirector:
     def quit(self):
         for _id in self.acs:
             self.acs[_id].release()
-        time.sleep(0.1) # wait for message to be transmitted before closing middleware, yeah.. fuck, we need synchro with ivy
+        time.sleep(0.2) # wait for message to be transmitted before closing middleware, yeah.. fuck, we need synchro with ivy
         self.pprz_connect.shutdown()
 
 
-scen1 = '''
-ids: [4,5]
-trajs: ["circle_with_intro1", "circle_with_intro3"]
-'''
-scen2 = '''
-ids: [4,5]
-trajs: ["space indexed oval", "space indexed oval2"]
-'''
-scen3 = '''
-ids: [4, 5, 6]
-trajs: ["circle_with_intro1", "circle_with_intro2", "circle_with_intro3"]
-'''
         
 class Application(QApplication):
-    def __init__(self):
+    def __init__(self, args):
         super().__init__(sys.argv)
+        #super().__init__(args)
         self.setApplicationDisplayName("ClicknFly")
-        #breakpoint()
-        scen = yaml.safe_load(scen3)
-        trajs, ids = scen['trajs'], scen['ids']
+        self.setApplicationName("ClicknFly42")
+
+        self.scenario = cnf_scen.scenarios[int(args.scen)]()
+        trajs, ids = self.scenario.trajs, self.scenario.ids
+        #scen = yaml.safe_load(scens[int(args.scen)])
+        #trajs, ids = scen['trajs'], scen['ids']
 
         self.model = model.Model()
         for traj_name in trajs:
             self.model.load_from_factory(traj_name)
 
-       
         self.fd = FlightDirector(self.model, ids)
         self.window = MainWindow(self.model, ids, self)
         self.window.show()
 
-
         #self.threadpool = QThreadPool()
         #self.worker = None
 
-        self.connected_aircraft = {}
-    
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.periodic)
         self.timer.start(50)
@@ -235,7 +229,7 @@ class Application(QApplication):
             self.fd.run()
             self.t0 += self.dt_control
 
-        acs = self.fd.get_acs()  # FIXME... maybe encapsulate that
+        acs = self.fd.get_acs()
         for i, ac_id in enumerate(self.fd.ids):
             ac = acs[ac_id]
             self.window.set_ref_pose(ac.Tref, i)
@@ -244,17 +238,50 @@ class Application(QApplication):
             except KeyError: pass # we don't know the drone pose yet
             self.window.update_vehicle_traj(np.array(ac.vehicle_traj), i)
 
+
+scen1 = '''
+ids: [4]
+trajs: ["circle_with_intro1"]
+'''
+scen2 = '''
+ids: [4,5]
+trajs: ["circle_with_intro1", "circle_with_intro2"]
+'''
+scen3 = '''
+ids: [4, 5, 6]
+trajs: ["circle_with_intro1", "circle_with_intro2", "circle_with_intro3"]
+'''
+scen4 = '''
+ids: [4, 5, 6, 7]
+trajs: ["circle_with_intro1", "circle_with_intro2", "circle_with_intro3", "circle_with_intro4"]
+'''
+scen5 = '''
+ids: [4,5]
+trajs: ["smooth_back_and_forth1", "smooth_back_and_forth2"]
+'''
+
+scens = [scen1, scen2, scen3, scen4, scen5]
+
+def parse_cli():
+    parser = argparse.ArgumentParser(description='ClicknFly, flight director.')
+    parser.add_argument('--scen', help='the name of the scenario', default=0)
+    parser.add_argument('--qt-name', help="Set the window name.", default='blaaaa', metavar="inkcut")
+    args = parser.parse_args()
+    return args
+
+            
 def main():
     logging.basicConfig(level=logging.INFO)
     logger.setLevel(logging.DEBUG)
-    app = Application()
+    args = parse_cli()
+    cnf = Application(args)
     def _quit(sig, frame):
         #print(chr(8)+chr(8),end="") # remove ^C from console... nope...
         logger.debug('Keyboard interrupt')
-        app.on_quit()
+        cnf.on_quit()
         sys.exit()
     signal.signal(signal.SIGINT, _quit)
-    app.exec()
+    cnf.exec()
 
 
 if __name__ == '__main__':

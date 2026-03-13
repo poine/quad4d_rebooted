@@ -1,23 +1,26 @@
 #!/bin/env python3
-import sys, time, signal, logging
-import numpy as np
+import sys, time, signal, logging, argparse, numpy as np
 
 from PySide6.QtGui import QAction, QIcon, QCursor, Qt, QColor, QPalette
 from PySide6.QtWidgets import QMainWindow, QMenu, QApplication, QWidget, QVBoxLayout, QLabel
 import PySide6.QtCore
 
 
-import model as cnf_mod, main_window as cnf_mw, view_geometry as cng_geom
-
-#import traj_guided
-#from pprzlink.message import PprzMessage
+import model as cnf_mod, main_window as cnf_mw, view_geometry as cnf_geom, view_three_d as cnf_td
+import scenarios as cnf_scen
 
 logger = logging.getLogger(__name__)
 
 class Application(QApplication):
-    def __init__(self):
+    def __init__(self, args):
         super().__init__(sys.argv)
-        self.model = cnf_mod.Model(load_fact_id='space indexed race track 1')
+        self.model = cnf_mod.Model()
+        if args.scen is not None:
+            self.scenario = cnf_scen.scenarios[int(args.scen)]()
+            for traj in self.scenario.trajs:
+                self.model.load_from_factory(traj)
+        else:
+            self.add_from_factory('space indexed race track 1')
         self.window = cnf_mw.MainWindow(self.model, self)
         self.timer = PySide6.QtCore.QTimer(self)
         self.timer.timeout.connect(self.periodic)
@@ -29,9 +32,7 @@ class Application(QApplication):
         self.window.display_new_trajectory(self.model, idx, show_quad=self.timer.isActive())
         
     def add_from_factory(self, which):
-        print('add from factory', which)
-        self.model.load_from_factory(which, replace=None)
-        print(self.model.trajectories)
+        self.model.load_from_factory(which, idx=None)
 
     def remove_drone(self, idx):
         logger.debug(f'CNF::remove_drone {idx}')
@@ -72,17 +73,26 @@ class Application(QApplication):
          np.savetxt(filename, np.hstack((time[:,np.newaxis], Y[:,:,0], Y[:,:,1], Y[:,:,2])), delimiter=',',
                     header='time,x(N),y(E),z(D),psi,xd(N),yd(E),zd(D),psid,xdd(N),ydd(E),zdd(D),psidd')
 
-        
+
+
+def parce_cli():
+    parser = argparse.ArgumentParser(description='ClicknFly, flight director.')
+    parser.add_argument('--scen', help='the id of the scenario', default=None)
+    args = parser.parse_args()
+    return args
+
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    app = Application()
+    args = parce_cli() 
+    app = Application(args)
     sys.exit(app.exec())
 
 if __name__=="__main__":
     logging.basicConfig(level=logging.INFO)
     logger.setLevel(logging.DEBUG)
     cnf_mw.logger.setLevel(logging.DEBUG)
-    cng_geom.logger.setLevel(logging.DEBUG)
+    cnf_geom.logger.setLevel(logging.DEBUG)
+    cnf_td.logger.setLevel(logging.DEBUG)
     main()
 
 

@@ -13,13 +13,13 @@ ln -s /home/poine/work/quad4d_rebooted/src/qt_gui/org.nongnu.paparazzi.clicknfly
 # TODO
 
  - //full state chronogram
- - display several trajectories
+ - //display several trajectories
  - change parameters
- - remote control
+ - in progress: remote control
  - safety check
  - psi trajectory that remains facing forward?
- - (space index) optimization
-
+ - in progress: (space index) optimization
+ - anticollision (multi traj optim?)
 
 
 ## remote control
