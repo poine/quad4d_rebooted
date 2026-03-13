@@ -7,8 +7,8 @@ layout: default
 </script>
 
 
-[top](/pres)
-[next](/pres/03_indexation_spatiale)
+[top](../pres)
+[next](03_indexation_spatiale)
 
 ### 1: Définition
 
@@ -80,5 +80,5 @@ $$
 
 (show smooth back and forth)
 
-[top](/pres)
-[next](/pres/03_indexation_spatiale)
+[top](../pres)
+[next](03_indexation_spatiale)

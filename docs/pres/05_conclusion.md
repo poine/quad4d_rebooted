@@ -7,7 +7,7 @@ layout: default
 </script>
 
 
-[top](/pres)
+[top](../pres)
 
 What's next
   * Use it
@@ -17,7 +17,9 @@ What's next
   * Real time planning / distributed planning
   * Required for playing with fancy control (eg fleet, high dynamic)
   * chicken and egg problem
+    * good trajectory definition needed for fancy control
+	* fancy control needed for good trajectory traking
 
 (show triple circle with intro on paparazzi)
 
-[top](/pres)
+[top](../pres)

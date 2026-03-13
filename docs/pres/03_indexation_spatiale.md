@@ -6,9 +6,9 @@ layout: default
 <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript">
 </script>
 
-[prev](/pres/02_platitude)
-[top](/pres)
-[next](/pres/04_optimization)
+[prev](02_platitude)
+[top](../pres)
+[next](04_optimization)
 
 ### 1: Définition
 Il s'agit ici de découpler la géometrie et la dynamique d'une trajectoire.
@@ -46,6 +46,6 @@ Yt[:,4] = _lambda[4]*_g[:,1] + (3*_lambda[2]**2+4*_lambda[1]*_lambda[3])*_g[:,2]
 
 (show space indexed racetrack)
 
-[prev](/pres/02_platitude)
-[top](/pres)
-[next](/pres/04_optimization)
+[prev](02_platitude)
+[top](../pres)
+[next](04_optimization)

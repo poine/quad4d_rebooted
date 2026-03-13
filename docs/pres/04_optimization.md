@@ -5,9 +5,9 @@ layout: default
 
 <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
 
-[prev](/pres/03_indexation_spatiale)
-[top](/pres)
-[next](/pres/05_conclusion)
+[prev](03_indexation_spatiale)
+[top](../pres)
+[next](05_conclusion)
 
 # Optimization
 
@@ -28,6 +28,6 @@ layout: default
 (show dual space indexed racetrack)
 
 
-[prev](/pres/03_indexation_spatiale)
-[top](/pres)
-[next](/pres/05_conclusion)
+[prev](03_indexation_spatiale)
+[top](../pres)
+[next](05_conclusion)
