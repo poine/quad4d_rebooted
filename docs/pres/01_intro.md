@@ -5,8 +5,8 @@ layout: default
 
 <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script>
 
-[top](/pres)
-[next](/pres/02_platitude)
+[top](..)
+[next](02_platitude)
 
 # Trajectories (control objectives)
 
@@ -41,5 +41,5 @@ $$ ( splines, etc...)
   * Accurate (usable) but hard to define 
 
 
-[top](/pres)
-[next](/pres/02_platitude)
+[top](..)
+[next](02_platitude)
