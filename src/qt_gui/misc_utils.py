@@ -11,7 +11,21 @@ import pat3.vehicles.rotorcraft.multirotor_trajectory as p3_mt
 import pat3.vehicles.rotorcraft.multirotor_fdm as p3_mfdm
 
 
+
+# let's try scipy...
+
+#import scipy.spatial.transform
+from scipy.spatial.transform import Rotation as R
+#
 def pos_of_T(T): return T[:3,3]
+
+def T_set_position(T,t): T[:3,3]=t
+
+def T_of_t_euler(t, eulers, degrees=False): # eulers is psi, theta, phi, intrinsic, yesss
+    T = np.eye(4)
+    T[:3,:3] = R.from_euler("ZYX", eulers, degrees=degrees).as_matrix()
+    T[:3,3] = t
+    return T
 
 # pat uses ned... all the following is sketchy...
 def Yenu2ned(Yenu):

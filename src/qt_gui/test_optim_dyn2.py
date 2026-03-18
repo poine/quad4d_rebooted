@@ -74,7 +74,7 @@ def main():
     win = QMainWindow()
     win.resize(1280, 1024)
     win.show()
-    mo = model.Model(load_fact_id='space indexed figure of height')
+    mo = model.Model(traj_fact_id='space indexed figure of height')
     #mo.load_from_factory('space indexed figure of height2', replace=None)
     mo.load_from_factory('circle north', replace=None)
 

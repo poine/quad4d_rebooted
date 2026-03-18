@@ -11,18 +11,41 @@ import traj_factory, misc_utils as mu
         
 logger = logging.getLogger(__name__)
 
-class Model:
-    def __init__(self, load_fact_id=None, trajectory=None):
+class Arena:
+    def __init__(self, cfg_file=None):
+        self.gates = []
+        if cfg_file is not None: self.load_cfg(cfg_file)
+        else:
+            self.extends = ((-5, 5), (-5, 5), (0, 8.))
+            self.safe_extends = ((-4, 4), (-4, 4), (1, 7.))
+        
+    def add_gate(self, name, Tw2g, dim, texture):
+        self.gates.append({'name':name, 'pose':Tw2g, 'dim': dim, 'texture':texture})
 
+    def load_cfg(self, filename):
+        with open(filename, "r") as file:
+            config = yaml.safe_load(file)
+        for key in config:
+            if key=='extends':
+                self.extends = np.array(config[key])
+            if key=='safe_extends':
+                self.safe_extends = np.array(config[key])
+            elif key=='gates':
+                for g_name in config[key]:
+                    cg = config[key][g_name]
+                    Tw2g = mu.T_of_t_euler(cg['pos'], cg['rot'], degrees=True)
+                    self.add_gate(g_name, Tw2g, cg['dim'], cg['text'])
+        
+class Model:
+    def __init__(self, traj_fact_id=None, trajectory=None, arena_cfg=None):
         self.trajectories = []
         
         if trajectory is not None:
             self.trajectory.append(trajectory)
-        if load_fact_id is not None:
-            self.load_from_factory(load_fact_id)
+        if traj_fact_id is not None:
+            self.load_from_factory(traj_fact_id)
         self.fdm = p_mfdm.MR_FDM()
-        self.extends = ((-5, 5), (-5, 5), (0, 8.))
-        self.safe_extends = ((-4, 4), (-4, 4), (1, 7.))
+        self.arena = Arena(arena_cfg)
        
     def load_from_factory(self, name, chapter=None, idx=None):
         trajectory = traj_factory.TrajFactory.get(name, chapter)()

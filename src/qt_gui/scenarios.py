@@ -1,4 +1,4 @@
-import traj_factory
+#import traj_factory # not needed?
 
 
 class Scenario:
@@ -24,6 +24,11 @@ class Scenario5:
     ids= [4,5]
     trajs= ["smooth_back_and_forth1", "smooth_back_and_forth2"]
 
+class Scenario6:
+    ids = [4]
+    trajs = ["space indexed gate race1"]
+    arena = "data/arena_3.yaml"
 
-scenarios = [Scenario1, Scenario2, Scenario3, Scenario4, Scenario5]
+
+scenarios = [Scenario1, Scenario2, Scenario3, Scenario4, Scenario5, Scenario6]
 

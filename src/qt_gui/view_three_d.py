@@ -18,8 +18,10 @@ class ThreeDWidget(gl.GLViewWidget):
 
         self.scene_items={}
         self.build_grid(model)
+        if model is not None:
+            self.build_arena(model)
+            self.arena = FlightArena(self, model.arena)
         self.build_frames()
-        if model is not None: self.build_arena(model)
 
         defaults = [('grid', True), ('arena', False) , ('frames', False)]
         for k, s in defaults:
@@ -66,7 +68,7 @@ class ThreeDWidget(gl.GLViewWidget):
         self.traj_items[idx].update_vehicle_traj(Ys)
  
     def build_grid(self, model): # FIXME: needs love
-        extends = model.extends if model is not None else ((-5, 5), (-5, 5), (0, 10.))
+        extends = model.arena.extends if model is not None else ((-5, 5), (-5, 5), (0, 10.))
         grid_item = gl.GLGraphicsItem.GLGraphicsItem()
         grid_size = QVector3D(10,10, 1)
         gx = gl.GLGridItem(grid_size, parentItem=grid_item)
@@ -81,7 +83,7 @@ class ThreeDWidget(gl.GLViewWidget):
         
     def build_arena(self, model):
         arena_item = gl.GLGraphicsItem.GLGraphicsItem()
-        e = (xm,xM), (ym,yM), (zm,zM) = model.extends
+        e = (xm,xM), (ym,yM), (zm,zM) = model.arena.extends
         poss = [[[xm,ym,zm], [xM,ym,zm]], [[xm,yM,zm], [xM,yM,zm]], [[xm,ym,zm], [xm,yM,zm]], [[xM,ym,zm], [xM,yM,zm]],
                 [[xm,ym,zM], [xM,ym,zM]], [[xm,yM,zM], [xM,yM,zM]], [[xm,ym,zM], [xm,yM,zM]], [[xM,ym,zM], [xM,yM,zM]],
                 [[xm,ym,zm], [xm,ym,zM]], [[xM,ym,zm], [xM,ym,zM]], [[xm,yM,zm], [xm,yM,zM]], [[xM,yM,zm], [xM,yM,zM]],
@@ -99,9 +101,50 @@ class ThreeDWidget(gl.GLViewWidget):
             self.build_triedra(frames_item, 'World (NED)', 0.75, T_enu2ned)
         else:
             self.build_triedra(frames_item, 'World (ENU)')
+        if True:
+            for g in self.arena.gate_items:
+                self.build_triedra(frames_item, g.name, 0.25, g.transform())
+            
         self.scene_items['frames'] = frames_item
-        
 
+#
+# Flight arena
+#
+import matplotlib.image as mpimg
+
+class Gate(gl.GLGraphicsItem.GLGraphicsItem):
+    def __init__(self, parent, Tenu2flu, name, texture, dims, draw_contour=False):
+        super().__init__()
+        parent.addItem(self)
+        self.setTransform(pg.Transform3D(Tenu2flu))
+        self.name = name
+
+        (w1,h1),(w2,h2) = dims
+        if draw_contour:
+            poss = 0.5*np.array([[[0,w1,h1],[0,-w1,h1],[0,-w1,-h1],[0,w1,-h1],[0,w1,h1]],
+                                 [[0,w2,h2],[0,-w2,h2],[0,-w2,-h2],[0,w2,-h2],[0,w2,h2]]])
+            col=[1,1,1,1]
+            for pos in poss: gl.GLLinePlotItem(self, pos=pos, color=col, width=1, mode='line_strip')
+        
+        image = mpimg.imread(texture)
+        texture = (image*255).astype(int)
+        item = gl.GLImageItem(texture, parentItem=self)
+        sx, sy = w1/image.shape[0], h1/image.shape[1]
+        item.scale(sx, sy, 1.)
+        item.rotate(90, 0,1,0)
+        item.translate(0, -h1/2, w1/2)
+            
+class FlightArena:
+    def __init__(self, parent, arena):
+        self.gate_items = []
+        for i, g in enumerate(arena.gates):
+            self.gate_items.append(Gate(parent, g['pose'], g['name'], g['texture'], g['dim']))
+
+    def get_frames(self): return [g.transform() for g in self.gate_items]
+
+#
+# 3D representation of a trajectory (reference and real tracks, reference and real quads, waypoints)
+#
 class TrajItem:
     _colors = [(0.12, 0.47, 0.7 , 1),
                (1.  , 0.5, 0.055, 1),

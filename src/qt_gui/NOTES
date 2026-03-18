@@ -1,3 +1,5 @@
+
+
 # install
 
 python3 -m venv /home/poine/venv_quad4d
@@ -20,7 +22,8 @@ ln -s /home/poine/work/quad4d_rebooted/src/qt_gui/org.nongnu.paparazzi.clicknfly
  - psi trajectory that remains facing forward?
  - in progress: (space index) optimization
  - anticollision (multi traj optim?)
-
+ - https://www.reddit.com/r/Damnthatsinteresting/comments/1l816jn/for_the_first_time_an_autonomous_drone_defeated/
+ - https://www.youtube.com/watch?v=yz2in2eFATE
 
 ## remote control
 

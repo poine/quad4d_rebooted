@@ -15,7 +15,7 @@ def main():
     t1,t2 = 'space indexed figure of height', 'space indexed figure of height3'
     #t1,t2 = 'space indexed oval', 'space indexed oval2'
 
-    mo = model.Model(load_fact_id=t1)
+    mo = model.Model(traj_fact_id=t1)
     mo.load_from_factory(t2, idx=1)
 
     tdw = vtd.ThreeDWidget()

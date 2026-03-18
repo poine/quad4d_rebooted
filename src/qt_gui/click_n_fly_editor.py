@@ -19,6 +19,9 @@ class Application(QApplication):
             self.scenario = cnf_scen.scenarios[int(args.scen)]()
             for traj in self.scenario.trajs:
                 self.model.load_from_factory(traj)
+            try: self.model.arena.load_cfg(self.scenario.arena)
+            except AttributeError: # self.scenario.arena does not exist - Still not convinced about "ask for forgiveness not permission"
+                pass
         else:
             self.add_from_factory('space indexed race track 1')
         self.window = cnf_mw.MainWindow(self.model, self)

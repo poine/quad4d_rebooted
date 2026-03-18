@@ -24,14 +24,14 @@ layout: default
   * Actuators saturations?
 
 ## 3D+t
-  * $$Y(t) = cos(t)$$ (circle or something else ... or $$Y=\Sigma^\infty a_k cos(kt)$$)
+  * $$Y(t) = cos(t)$$ (circle or something else $$Y=\Sigma^\infty a_k cos(kt)$$)
   * $$Y(t) = a_0 + a_1 t + a_2 t^2 +...$$ (polynomials)
   * piecewise
 $$
 Y(t) = \left\{\begin{array}{lr}
-        Y_1(t), & \text{for } t_0\leq t\leq t_1\\
-        Y_2(t), & \text{for } t_1\leq t \leq t_2\\
-        Y_3(t), & \text{for }  t_2\leq t \leq t_3\\
+        Y_1(t), & \text{for } t_0\leq t < t_1\\
+        Y_2(t), & \text{for } t_1\leq t < t_2\\
+        Y_3(t), & \text{for }  t_2\leq t < t_3\\
 		...
         \end{array}\right\}
 $$ ( splines, etc...)

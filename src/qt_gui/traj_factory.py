@@ -272,6 +272,26 @@ class Traj49(Traj45):
         wps = [[x1,y2,z], [-x1,y2,z], [-x2,y1,z], [-x2,-y1,z], [-x1,-y2,z], [x1,-y2,z], [x2,-y1,z], [x2,y1,z], [x1,y2,z]]
         super().__init__(wps)
 
+
+class Traj50(Traj45):
+    name, desc = 'space indexed gate race1', 'Space indexed waypoint example 6'
+    def __init__(self):
+        p1 = [-2, 3, 1] # start
+        p2 = [ 0.5, 2.5, 2.5]
+        p3 = [ 1.9, 1.5, 3]
+        p4 = [ 2, 0, 3] # g1
+        
+        p5 = [ 0, -2, 3] # g2
+        p6 = [-1, -2.2, 2.5] # 
+        p7 = [ 0, -2, 2] # g3
+        
+        p8 = [ 2, 1, 2] # g4
+        p9 = [ 0.5, 2.5, 1.5] # 
+        p10 = [ -2, 3, 1] # end
+        
+        wps = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10]
+        super().__init__(wps)
+        
         
 class TrajFactory:
     _chapters = {}
@@ -321,3 +341,4 @@ TrajFactory.register(Traj46, 'space index')
 TrajFactory.register(Traj47, 'space index')
 TrajFactory.register(Traj48, 'space index')
 TrajFactory.register(Traj49, 'space index')
+TrajFactory.register(Traj50, 'space index')

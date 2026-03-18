@@ -48,7 +48,7 @@ class ProjView(FigureCanvas):
             self.line_waypoints.set_data([],[])
         _time, Ys = model.sample_traj_output()
         self.line_traj.set_data(Ys[:,self.ix,0], Ys[:,self.iy,0])
-        self.__ax.set(xlim=model.extends[self.ix], ylim=model.extends[self.iy])
+        self.__ax.set(xlim=model.arena.extends[self.ix], ylim=model.arena.extends[self.iy])
         #self.__ax.relim()
         self.draw()
         
