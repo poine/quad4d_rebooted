@@ -10,7 +10,6 @@ from PySide6.QtGui import (QFont, QVector3D)
 logger = logging.getLogger(__name__)
 
 
-
 class ThreeDWidget(gl.GLViewWidget):
     def __init__(self, model=None):
         super().__init__()
@@ -101,10 +100,11 @@ class ThreeDWidget(gl.GLViewWidget):
             self.build_triedra(frames_item, 'World (NED)', 0.75, T_enu2ned)
         else:
             self.build_triedra(frames_item, 'World (ENU)')
-        if True:
+        try:
             for g in self.arena.gate_items:
                 self.build_triedra(frames_item, g.name, 0.25, g.transform())
-            
+        except AttributeError: #
+            pass
         self.scene_items['frames'] = frames_item
 
 #

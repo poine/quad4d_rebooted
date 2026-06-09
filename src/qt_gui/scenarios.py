@@ -5,7 +5,7 @@ class Scenario:
     pass
 
 class Scenario1:
-    ids= [4]
+    ids= [112]
     trajs= ["circle_with_intro1"]
 
 class Scenario2:
@@ -29,6 +29,11 @@ class Scenario6:
     trajs = ["space indexed gate race1"]
     arena = "data/arena_3.yaml"
 
+class Scenario7:
+    ids = [4]
+    trajs = ["scara race"]
+    arena = "data/arena_4.yaml"
 
-scenarios = [Scenario1, Scenario2, Scenario3, Scenario4, Scenario5, Scenario6]
+
+scenarios = [Scenario1, Scenario2, Scenario3, Scenario4, Scenario5, Scenario6, Scenario7]
 
