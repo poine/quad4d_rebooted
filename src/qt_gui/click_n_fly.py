@@ -154,7 +154,7 @@ class FlightDirector:
                 logger.debug('all drones connected, moving them to start pos')
         elif self.status == FDStatus.GETTING_READY:
             dist_to_start = [self.acs[i].dist_to_ref() for i in self.ids]
-            if np.max(dist_to_start) < 0.1:
+            if np.max(dist_to_start) < 0.15:
                 self.status, self.t0 = FDStatus.GUIDING, time.time()
                 logger.debug('all drones arrived to start, starting the show')
         elif self.status == FDStatus.GUIDING:
