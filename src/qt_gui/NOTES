@@ -1,4 +1,7 @@
 
+sshfs dieynaba@192.168.1.92:/home/dieynaba/work/ /home/pprz/Projects/pepe
+
+fusermount -u /home/pprz/Projects/pepe
 
 # install
 
