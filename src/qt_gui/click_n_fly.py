@@ -212,6 +212,7 @@ class Application(QApplication):
         self.timer.start(50)
         self.t0, self.dt_control = time.time(), 0.1
 
+        self.is_guiding = False
 
     def on_quit(self):
         logger.debug('app on quit')
@@ -220,13 +221,15 @@ class Application(QApplication):
     def on_guide_clicked(self):
         #self.worker = Worker(self.model.get_trajectory(), self.traj_manager)
         #self.threadpool.start(self.worker)
-        self.window.log_text('started')
+        self.window.log_text('Take off and trajectory following started')
+        self.is_guiding = True
 
     def periodic(self):
         now = time.time()
         elapsed = now - self.t0
         if elapsed >= self.dt_control:
-            self.fd.run()
+            if self.is_guiding:
+                self.fd.run()
             self.t0 += self.dt_control
 
         acs = self.fd.get_acs()
