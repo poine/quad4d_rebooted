@@ -136,6 +136,26 @@ class FlightDirector:
             self.acs[_id] = Drone()
         self.t0 = 0.
         self.duree_du_show = self.trajectories.trajectory_duration()  #POur avoir la durée du show
+
+      def on_pprz_external_pose(self, sender, msg):
+        print(sender, msg)
+        #e="enu_x"     type="float" unit="m">ENU x position in vision frame</field>
+        #<field name="enu_y"     type="float" unit="m">ENU y position in vision frame</field>
+        #<field name="enu_z"
+        #breakpoint() 
+        #pos_enu = [msg[_c] for _c in ['enu_x', 'enu_z', 'enu_y']]
+        x = msg['enu_x']
+        y = msg['enu_z']
+        z = msg['enu_y']
+        pos_enu = [x, y, -z]
+        quat = np.array([msg[_c] for _c in ['body_qi', 'body_qx', 'body_qz', 'body_qy']])
+        #breakpoint()
+        rmat_enu2flu = p3_al.rmat_of_quat(quat)
+        T = np.eye(4); T[:3,3] = pos_enu;  T[:3,:3] = rmat_enu2flu
+        try:
+            self.acs[int(sender)].set_pose(T)
+            print("pose bine mis à jour")
+        except KeyError: pass # unknown
         
     def run(self): # for now called from GUI thread, maybe use our own thread?
         if self.status == FDStatus.STAGING or self.status == FDStatus.GETTING_READY:
