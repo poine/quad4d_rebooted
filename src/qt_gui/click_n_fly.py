@@ -135,6 +135,7 @@ class FlightDirector:
         for _id in self.ids:
             self.acs[_id] = Drone()
         self.t0 = 0.
+        self.duree_du_show = self.trajectories.trajectory_duration()  #POur avoir la durée du show
         
     def run(self): # for now called from GUI thread, maybe use our own thread?
         if self.status == FDStatus.STAGING or self.status == FDStatus.GETTING_READY:
@@ -158,8 +159,16 @@ class FlightDirector:
                 self.status, self.t0 = FDStatus.GUIDING, time.time()
                 logger.debug('all drones arrived to start, starting the show')
         elif self.status == FDStatus.GUIDING:
-            for i in self.ids:
-                self.acs[i].follow_ref() 
+            if elapsed >= self.duree_du_show:
+                self.status = FDStatus.FINISHED
+                logger.debug('End of the show')
+                for i in self.ids:
+                    self.acs[i].release()
+            else:
+                for i in self.ids:
+                    self.acs[i].follow_ref()
+        elif self.status == FDStatus.FINISHED:
+            pass
 
     def on_pprz_connect(self, conf):
         logger.debug(f'{conf.id} ({conf.name}) connected')
