@@ -41,7 +41,7 @@ class Model:
         self.trajectories = []
         
         if trajectory is not None:
-            self.trajectory.append(trajectory)
+            self.trajectories.append(trajectory)
         if traj_fact_id is not None:
             self.load_from_factory(traj_fact_id)
         self.fdm = p_mfdm.MR_FDM()
