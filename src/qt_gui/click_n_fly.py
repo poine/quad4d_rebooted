@@ -143,12 +143,12 @@ class FlightDirector:
         #<field name="enu_y"     type="float" unit="m">ENU y position in vision frame</field>
         #<field name="enu_z"
         #breakpoint() 
-        #pos_enu = [msg[_c] for _c in ['enu_x', 'enu_z', 'enu_y']]
-        x = msg['enu_x']
-        y = msg['enu_z']
-        z = msg['enu_y']
-        pos_enu = [x, y, -z]
-        quat = np.array([msg[_c] for _c in ['body_qi', 'body_qx', 'body_qz', 'body_qy']])
+        pos_enu = [msg[_c] for _c in ['enu_x', 'enu_z', 'enu_y']]
+        #x = msg['enu_x']
+        #y = msg['enu_z']
+        #z = msg['enu_y']
+        #pos_enu = [x, y, -z]
+        quat = np.array([msg[_c] for _c in ['body_qi', 'body_qx', 'body_qy', 'body_qz']])
         #breakpoint()
         rmat_enu2flu = p3_al.rmat_of_quat(quat)
         T = np.eye(4); T[:3,3] = pos_enu;  T[:3,:3] = rmat_enu2flu
