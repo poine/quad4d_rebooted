@@ -112,9 +112,20 @@ class Donut1(p_mt.CompositeTraj):
         super().__init__(steps)
 
 
+class cercle_back_and_forth(p_mt.CompositeTraj):
+    name, desc = 'cercle_back_and_forth', 'cicle followed by back and forth'
+    def __init__(self):
+        fig1 = Traj62()
+        fig2 = Traj81()
 
+        Y_fin_fig1 = fig1.get(fig1.duration)
+        Y_debut_fig2 = fig2.get(0)
 
-        
+        steps = [fig1, 
+            p_mt.SmoothLine(Y_fin_fig1, Y_debut_fig2, duration=3.), 
+            fig2
+            ]
+        super().__init__(steps)
 
 class Traj17(p_mt.Trajectory):
     name, desc = 'sphere0', 'sphere0'
@@ -237,7 +248,7 @@ class Traj45(p_mt_dev.SpaceIndexedTraj):
         wps = wps or [[1.4,1.4,2], [0,0,2], [-1.4,-1.4,2], [-1,-3,2], [1,-3,2], [1.4,-1.4,2], [0,0,2], [-1.4,1.4,2], [-1,3,2], [1,3,2], [1.4,1.4,2]]
         self.wps = np.array(wps)
         self.wp_traj = p_mt_dev.SpaceWaypoints2(self.wps, bc="periodic")
-        self.duration = 10
+        self.duration = 30
         self.dyn_traj = p_t1d.AffOne((0,0),(self.duration,1))
         self.traj = p_mt_dev.SpaceIndexedTraj(self.wp_traj, self.dyn_traj)
         super().__init__(self.wp_traj, self.dyn_traj)
@@ -291,8 +302,44 @@ class Traj50(Traj45):
         
         wps = [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10]
         super().__init__(wps)
-        
-        
+
+#Let's try a queue leu leu showcase
+class QueueLeuLeu(p_mt_dev.SpaceIndexedTraj):
+    name, desc = 'queue leu leu', 'Space indexed waypoint example 7'
+    def __init__(self, delay=0.0):
+        wps = [[-2, 3, 1], [0.5, 2.5, 2.5], [1.9, 1.5, 3], [2, 0, 3], 
+               [0, -2, 3], [-1, -2.2, 2.5], [0, -2, 2], [2, 1, 2], 
+               [0.5, 2.5, 1.5], [-2, 3, 1]]
+        self.wps = np.array(wps)
+        self.wp_traj = p_mt_dev.SpaceWaypoints2(self.wps, bc="periodic")
+        self.duration = 20.0
+        if delay > 0.0:
+            dyn_pts = [[0,0],[delay, 0], [delay + self.duration, 1.]]
+            dyn_segments = [p_t1d.AffOne(dyn_pts[i], dyn_pts[i+1]) for i in range(len(dyn_pts)-1)]
+            self.dyn_traj = p_t1d.SmoothedCompositeOne(dyn_segments, eps=0.01)
+        else: 
+            self.dyn_traj = p_t1d.AffOne((0,0),(self.duration,1))
+
+        super().__init__(self.wp_traj, self.dyn_traj)
+
+    def has_waypoints(self): return True
+    def get_waypoints(self): return self.wps
+
+class QueueLeuLeu1(QueueLeuLeu):
+    name, desc = 'queue leu leu 1', 'Course with delay1'
+    def __init__(self):
+        super().__init__(delay=0.0)
+
+class QueueLeuLeu2(QueueLeuLeu):
+    name, desc = 'queue leu leu 2', 'Course with delay2'
+    def __init__(self):
+        super().__init__(delay=3.0)
+
+class QueueLeuLeu3(QueueLeuLeu):
+    name, desc = 'queue leu leu 3', 'Course with delay3'
+    def __init__(self):
+        super().__init__(delay=6.0)
+       
 class TrajFactory:
     _chapters = {}
     _trajectories = {}
@@ -342,3 +389,11 @@ TrajFactory.register(Traj47, 'space index')
 TrajFactory.register(Traj48, 'space index')
 TrajFactory.register(Traj49, 'space index')
 TrajFactory.register(Traj50, 'space index')
+
+
+TrajFactory.register(cercle_back_and_forth, 'showcase 1')
+
+TrajFactory.register(QueueLeuLeu1, 'Poursuite')
+TrajFactory.register(QueueLeuLeu2, 'Poursuite')
+TrajFactory.register(QueueLeuLeu3, 'Poursuite')
+
