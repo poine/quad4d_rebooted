@@ -22,22 +22,26 @@ logger = logging.getLogger(__name__)
 
 
 class GuidanceDialog(QDialog):
-    def __init__(self, parent, cbk):
+    def __init__(self, parent, cbk, cbk_restart):
         super().__init__(parent)
         self.setWindowTitle("Guide Quadrotor")
         self.resize(800,600)
         self.textedit_wid = QPlainTextEdit()
         self.textedit_wid.setReadOnly(True)
         self.button_guide = QPushButton("Guide")
+        self.button_restart = QPushButton("Restart Show")
+        self.button_restart.setEnabled(False)
         self.progress = QProgressBar()
         #self.progress.setTextVisible(True)
         layout = QVBoxLayout()
         layout.addWidget(self.textedit_wid)
         layout.addWidget(self.button_guide)
+        layout.addWidget(self.button_restart)
         layout.addWidget(self.progress)
         self.setLayout(layout)
         #self.textedit_wid.setPlainText(str('12345'))
         self.button_guide.clicked.connect(cbk)
+        self.button_restart.clicked.connect(cbk_restart)
 
     def show_progress(self, value): self.progress.setValue(value)
     def log_text(self, txt): self.textedit_wid.appendPlainText(txt)
@@ -53,15 +57,19 @@ class MainWindow(QMainWindow):
             self.tdw.display_new_trajectory(model, i, show_details=False, show_quad=True, show_ref_quad=True)
         self.setCentralWidget(self.tdw)
 
-        self.dialog = GuidanceDialog(self, controller.on_guide_clicked)
+        self.dialog = GuidanceDialog(self, controller.on_guide_clicked, controller.on_restart_clicked)
         self.dialog.show()
 
     def set_quad_pose(self, T, i): self.tdw.set_quad_pose(T, i)
     def set_ref_pose(self, T, i): self.tdw.set_ref_pose(T, i)
     def update_vehicle_traj(self, vehicle_traj, i): self.tdw.update_vehicle_traj(vehicle_traj, i)
+    def set_restart_ready(self, ready):
+        self.dialog.button_restart.setEnabled(ready)
+        self.dialog.button_guide.setEnabled(not ready)   #see if it's a good solution
     
     def show_progress(self, p): self.dialog.show_progress(p)
     def log_text(self, t): self.dialog.log_text(t)
+    
 
     def closeEvent(self, event):
         logger.debug('x button clicked')
@@ -130,14 +138,15 @@ class FlightDirector:
         self.trajectories = trajectories
         self.pprz_connect = PprzConnect(notify=self.on_pprz_connect)
         self.pprz_connect.ivy.subscribe(self.on_pprz_flight_param, PprzMessage("telemetry", "ROTORCRAFT_FP"))
+        self.pprz_connect.ivy.subscribe(self.on_pprz_external_pose, PprzMessage("datalink", "EXTERNAL_POSE"))
         self.status = FDStatus.STAGING
         self.ids, self.acs = ids, {}
         for _id in self.ids:
             self.acs[_id] = Drone()
         self.t0 = 0.
         self.duree_du_show = self.trajectories.trajectory_duration()  #POur avoir la durée du show
-
-      def on_pprz_external_pose(self, sender, msg):
+        
+    def on_pprz_external_pose(self, sender, msg):
         print(sender, msg)
         #e="enu_x"     type="float" unit="m">ENU x position in vision frame</field>
         #<field name="enu_y"     type="float" unit="m">ENU y position in vision frame</field>
@@ -154,7 +163,7 @@ class FlightDirector:
         T = np.eye(4); T[:3,3] = pos_enu;  T[:3,:3] = rmat_enu2flu
         try:
             self.acs[int(sender)].set_pose(T)
-            print("pose bine mis à jour")
+            #print("pose bine mis à jour")
         except KeyError: pass # unknown
         
     def run(self): # for now called from GUI thread, maybe use our own thread?
@@ -252,6 +261,15 @@ class Application(QApplication):
         #self.threadpool.start(self.worker)
         self.window.log_text('Take off and trajectory following started')
         self.is_guiding = True
+        self.window.dialog.button_guide.setEnabled(False)
+        self.window.dialog.button_restart.setEnabled(False)
+        
+    def on_restart_clicked(self):
+        self.window.log_text('Restarting: Drones go back to starting point')
+        for ac_id in self.fd.ids:
+            self.fd.acs[ac_id].take_control()
+        self.fd.status = FDStatus.STAGING
+        self.window.set_restart_ready(False)
 
     def periodic(self):
         now = time.time()
@@ -259,6 +277,8 @@ class Application(QApplication):
         if elapsed >= self.dt_control:
             if self.is_guiding:
                 self.fd.run()
+                if self.fd.status == FDStatus.FINISHED:
+                    self.window.set_restart_ready(True)
             self.t0 += self.dt_control
 
         acs = self.fd.get_acs()
