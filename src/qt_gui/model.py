@@ -8,7 +8,9 @@ import pat3.vehicles.rotorcraft.multirotor_fdm as p_mfdm
 import pat3.vehicles.rotorcraft.multirotor_control as p_mctl
 
 import traj_factory, misc_utils as mu
-        
+
+from conflict_detector import ConflictDetector
+
 logger = logging.getLogger(__name__)
 
 class Arena:
@@ -46,6 +48,7 @@ class Model:
             self.load_from_factory(traj_fact_id)
         self.fdm = p_mfdm.MR_FDM()
         self.arena = Arena(arena_cfg)
+        self.conflict_detector = ConflictDetector(safety_distance=1.2)
        
     def load_from_factory(self, name, chapter=None, idx=None):
         trajectory = traj_factory.TrajFactory.get(name, chapter)()
@@ -118,3 +121,65 @@ class Model:
         rvel_flu[:,1] = -rvel_frd[:,1]
         rvel_flu[:,2] = -rvel_frd[:,2]
         return time, pos, vel, eulers_enu, rvel_flu
+            
+    def detect_conflicts(self, safety_distance=1.0, step=0.1):
+        """ duration = self.trajectory_duration()
+        conflicts = []
+        drones_indices = range(self.trajectory_nb())
+
+        for t in np.arange(0, duration, step):
+            positions = {}
+            for idx in drones_indices:
+                pos = self.get_traj_output_at(t, idx)[:3, 0]
+                positions[idx] = pos
+            for i in range(len(drones_indices)):
+                for j in range(i + 1, len(drones_indices)):
+                    idA, idB = drones_indices[i], drones_indices[j]
+                    if np.linalg.norm(positions[idA] - positions[idB]) < safety_distance:
+                        conflicts.append({'t': t, 'idA': idA, 'idB': idB})
+        return conflicts """
+
+        det = self.conflict_detector
+        det.safety_distance, det.time_step = safety_distance, step
+        drones_dict = {idx: self.get_trajectory(idx) for idx in range(self.trajectory_nb())}
+        _ok, pairs = det.check_scenario(drones_dict)
+        return [{'t': t, 'idA': a, 'idB': b} for (a, b, t) in pairs]
+
+    def resolve_conflicts(self, safety_distance=1.0, step=0.1, delay_increment=2.0):
+        #first idea: ddecaller le depart des drones pour eviter les conflits
+        max_attempts = 10
+        for attempts in range(max_attempts):
+            conflicts = self.detect_conflicts(safety_distance, step)
+            if not conflicts:
+                logger.info("safe scenario")
+                return True
+            conflicts.sort(key=lambda x: x['t'])
+            first_conflict = conflicts[0] 
+
+            t_conflict = first_conflict['t']
+            idA = first_conflict['idA']
+            idB = first_conflict['idB']
+            traj= self.trajectories[idB]
+
+            if isinstance(traj, DelayedTrajectory):
+                new_delay = traj.delay + delay_increment
+                self.trajectories[idB] = DelayedTrajectory(traj.original_traj, new_delay)
+            else:
+                self.trajectories[idB] = DelayedTrajectory(traj, delay_increment)
+        logger.error("Can't resolve all the conflicts after 10 attempts")
+        return False
+
+class DelayedTrajectory:
+    
+    def __init__(self, original_traj, delay):
+        self.original_traj = original_traj
+        self.delay = delay
+        self.duration = getattr(original_traj, 'duration', 20.0) + delay
+        
+    def get(self, t):
+        if t < self.delay:
+            return self.original_traj.get(0)
+        return self.original_traj.get(t - self.delay)
+
+    def __getattr__(self, name):
+        return getattr(self.original_traj, name)
