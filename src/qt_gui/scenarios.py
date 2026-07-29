@@ -146,7 +146,16 @@ class Scenario27:   # vraie spirale montante a 3 drones
     ids   = [112, 113, 114]
     trajs = ['spirale montante a', 'spirale montante b', 'spirale montante c']
 
+class Scenario28:   # safe: deux cercles cote a cote (separation spatiale)
+    desc  = 'two circles side by side'
+    ids   = [112, 113]
+    trajs = ['circle left', 'circle right']
 
+class Scenario29:   # safe: formes differentes a hauteurs differentes
+    desc  = 'lissajous & ring, split heights'
+    ids   = [112, 113]
+    trajs = ['show lissajous low', 'ring high']
+    
 scenarios = [
     Scenario1, 
     Scenario2, 
@@ -174,7 +183,9 @@ scenarios = [
     Scenario24,
     Scenario25,
     Scenario26,
-    Scenario27
+    Scenario27,
+    Scenario28,
+    Scenario29
     ]
 
 
@@ -196,4 +207,7 @@ for _c in scenarios:
     _c.conflict = _c in _WITH_CONFLICT
 
 
-
+FLEET_IDS = [110, 112, 111]
+_ID_REMAP = {112: FLEET_IDS[0], 113: FLEET_IDS[1], 114: FLEET_IDS[2]}
+for _c in scenarios:
+    _c.ids = [_ID_REMAP.get(_id, _id) for _id in _c.ids]
