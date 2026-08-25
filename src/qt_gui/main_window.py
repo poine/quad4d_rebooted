@@ -144,8 +144,9 @@ class MainWindow(QMainWindow):
             action.setCheckable(True); action.setChecked(self.views['3D'].is_item_visible(item_key))
             action.triggered.connect(partial(self.on_three_d_set_item_visible, src=action, what=item_key))
             three_d_submenu.addAction(action)
-        for d,i in zip(['Show Grid', 'Show Arena Boundaries', 'Show Frames'], ['grid', 'arena', 'frames']):
-            add_3dview_item_visible_action(d, i)
+        for d,i in zip(['Show Grid', 'Show Arena Boundaries', 'Show Frames', 'Show Volière Plan'],
+                       ['grid', 'arena', 'frames', 'floor']):
+          add_3dview_item_visible_action(d, i)
         
         
     def on_three_d_set_item_visible(self, src, what):
