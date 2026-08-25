@@ -2,17 +2,56 @@
 
 
 import logging
+import os
+from PySide6.QtCore import Qt, QSize, QEvent
+from PySide6.QtGui import QPixmap, QPainter, QIcon, QColor
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton,
                                QProgressBar, QPlainTextEdit, QGroupBox, QMenu,
-                               QGridLayout,
-                               QVBoxLayout, QHBoxLayout, QFrame, QScrollArea)
+                               QGridLayout, QSlider,
+                               QVBoxLayout, QHBoxLayout)                              
 from drones_panel import DronesPanel
 import view_three_d as vtd
 import view_chronograms as view_chrono
-from live_telemetry import TelemetryRecorder, LiveTelemetryWindow
+from live_telemetry import TelemetryRecorder, LiveTelemetryWindow, PLOTS as LIVE_PLOTS, PLOT_TITLES as LIVE_TITLES)
 
 logger = logging.getLogger(__name__)
+
+def _tinted_icon(path, size, color):
+    pm = QPixmap(size, size)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    QSvgRenderer(path).render(p)
+    p.setCompositionMode(QPainter.CompositionMode_SourceIn)
+    p.fillRect(pm.rect(), QColor(color))
+    p.end()
+    return QIcon(pm)
+ 
+ 
+class _ContrastBar(QProgressBar):
+ 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setTextVisible(False)
+ 
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.maximum() <= self.minimum():
+            return
+        text = self.text()
+        rect = self.rect()
+        frac = (self.value() - self.minimum()) / (self.maximum() - self.minimum())
+        fill_w = round(rect.width() * frac)
+        p = QPainter(self)
+        p.setFont(self.font())
+        p.setClipRect(0, 0, fill_w, rect.height())          # over the grey chunk
+        p.setPen(QColor("#0E110F"))
+        p.drawText(rect, Qt.AlignCenter, text)
+        p.setClipRect(fill_w, 0, rect.width() - fill_w, rect.height())  # over groove
+        p.setPen(QColor("#8B938F"))
+        p.drawText(rect, Qt.AlignCenter, text)
+        p.end()
 
 STYLE = """
 
@@ -146,16 +185,21 @@ class OperatorWindow(QMainWindow):
         self.view_menu = QMenu(self)
         for key, (_cls, title) in self._chrono_specs.items():
             act = self.view_menu.addAction(title)
-            act.setCheckable(True)
-            act.toggled.connect(lambda checked, k=key: self._toggle_chronogram(k, checked))
-
+            act.triggered.connect(lambda _checked=False, k=key: self._show_chronogram(k))
+          
         # live telemetry: recorder runs from startup (fed by periodic()),
         # the window is opened on demand with the history already there
         self.telemetry_recorder = TelemetryRecorder(self.fd.ids)
-        self._live_telemetry_win = None
+        self._live_wins = {}
         self.view_menu.addSeparator()
-        live_act = self.view_menu.addAction("Live telemetry")
-        live_act.triggered.connect(self._show_live_telemetry)
+        live_menu = self.view_menu.addMenu("Live telemetry")
+        act = live_menu.addAction("Overview (all)")
+        act.triggered.connect(lambda _checked=False: self._show_live_telemetry())
+        live_menu.addSeparator()
+        for key, title, _unit in LIVE_PLOTS:
+            act = live_menu.addAction(title[:1].upper() + title[1:])
+            act.triggered.connect(
+                lambda _checked=False, k=key: self._show_live_telemetry(k))
 
         root = QWidget()
         root.setObjectName("root")
@@ -175,6 +219,48 @@ class OperatorWindow(QMainWindow):
         for i in range(self.model.trajectory_nb()):
             self.tdw.display_new_trajectory(self.model, i, show_details=False,
                                             show_quad=True, show_ref_quad=True)
+
+        self.btn_floor = QPushButton(self.tdw)
+        self.btn_floor.setCheckable(True)
+        self.btn_floor.setChecked(True)
+        self.btn_floor.setToolTip("Plan volière")
+        self.btn_floor.setCursor(Qt.PointingHandCursor)
+        self.btn_floor.setFixedSize(30, 30)
+        self.btn_floor.setIconSize(QSize(18, 18))
+        _layers = os.path.join(os.path.dirname(vtd.__file__),
+                               'media', 'pprz_icons', 'layers.svg')
+
+        self._icon_layers_light = _tinted_icon(_layers, 18, QColor("#C7D0CB"))
+        self._icon_layers_dark  = _tinted_icon(_layers, 18, QColor("#0E1A12"))
+        self.btn_floor.setIcon(self._icon_layers_dark)   # starts checked
+        self.btn_floor.setStyleSheet(
+            "QPushButton{background:rgba(30,35,32,0.55);border:1px solid #353D38;"
+            "border-radius:6px;}"
+            "QPushButton:hover{background:rgba(43,50,45,0.75);}"
+            "QPushButton:checked{background:rgba(230,247,236,0.85);"
+            "border:1px solid #E6F7EC;}")
+        self.btn_floor.toggled.connect(self._on_floor_toggled)
+        self.tdw.installEventFilter(self)   # to keep the button bottom-left
+        self._reposition_floor_btn()
+
+        self.view_menu.addSeparator()
+        three_d_menu = self.view_menu.addMenu("3D view")
+        for label, key in [('Show Grid', 'grid'),
+                           ('Show Arena Boundaries', 'arena'),
+                           ('Show Frames', 'frames'),
+                           ('Show Volière Plan', 'floor')]:
+            if key not in self.tdw.scene_items:
+                continue
+            act = three_d_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(self.tdw.is_item_visible(key))
+            if key == 'floor':
+                self.act_floor = act
+                act.toggled.connect(self.btn_floor.setChecked)
+            else:
+                act.toggled.connect(
+                    lambda checked, k=key: self.tdw.set_item_visible(k, checked))
+        self.btn_floor.raise_()
         left.addWidget(self.tdw, stretch=1)
         left.addWidget(self._build_console_group())
         body.addLayout(left, stretch=4)
@@ -200,9 +286,9 @@ class OperatorWindow(QMainWindow):
 
         right = QWidget()
 
-        right.setFixedWidth(430)
+        right.setMinimumWidth(430)
         right.setLayout(panels)
-        body.addWidget(right, stretch=0)
+        body.addWidget(right, stretch=1)
 
         outer.addLayout(body, stretch=1)
 
@@ -218,15 +304,17 @@ class OperatorWindow(QMainWindow):
         win.show()
         win.raise_()
 
-    def _toggle_chronogram(self, key, checked):
-        # always tear down and rebuild fresh: the chronogram widgets add new
-        # plot lines on each display_new_trajectory, so reusing a window would
-        # accumulate stale lines across scenario changes
-        existing = self._chrono_windows.pop(key, None)
-        if existing is not None:
-            existing.close()
-        if checked:
-            self._open_chronogram(key)
+   def _show_chronogram(self, key):
+        win = self._chrono_windows.get(key)
+        if win is not None and win.isVisible():
+            win.raise_(); win.activateWindow()
+            return
+        # rebuild fresh: the chronogram widgets add new plot lines on each
+        # display_new_trajectory, so reusing a window would accumulate stale
+        # lines across scenario changes
+        if win is not None:
+            self._chrono_windows.pop(key).close()
+        self._open_chronogram(key)
 
     def _refresh_chronograms(self):
         for key in list(self._chrono_windows.keys()):
@@ -236,11 +324,19 @@ class OperatorWindow(QMainWindow):
             if visible:
                 self._open_chronogram(key)
 
-    def _show_live_telemetry(self):
-        if self._live_telemetry_win is None:
-            self._live_telemetry_win = LiveTelemetryWindow(self.telemetry_recorder)
-        self._live_telemetry_win.show()
-        self._live_telemetry_win.raise_()
+    def _show_live_telemetry(self, key=None):
+        name = key or 'all'
+        win = self._live_wins.get(name)
+        if win is None:
+            title = ("Click'n Fly - Live telemetry" if key is None else
+                     f"Click'n Fly - {LIVE_TITLES.get(key, key)}")
+            win = LiveTelemetryWindow(self.telemetry_recorder,
+                                      keys=None if key is None else [key],
+                                      title=title)
+            self._live_wins[name] = win
+        win.show()
+        win.raise_()
+        win.activateWindow()
 
     def record_live_telemetry(self, fd):
         self.telemetry_recorder.record(fd)
@@ -248,10 +344,28 @@ class OperatorWindow(QMainWindow):
     def closeEvent(self, event):
         for win in self._chrono_windows.values():
             win.close()
-        if self._live_telemetry_win is not None:
-            self._live_telemetry_win.close()
+        for win in self._live_wins.values():
+            win.close()
         self.app.on_quit()
         event.accept()
+
+    def _reposition_floor_btn(self):
+        m = 10
+        self.btn_floor.move(m, self.tdw.height() - self.btn_floor.height() - m)
+ 
+    def _on_floor_toggled(self, checked):
+        self.tdw.set_item_visible('floor', checked)
+        # dark icon on the bright checked button, light icon on the dark one
+        self.btn_floor.setIcon(self._icon_layers_dark if checked
+                               else self._icon_layers_light)
+        # keep the View > 3D view menu entry in sync (no-op if unchanged)
+        if hasattr(self, 'act_floor'):
+            self.act_floor.setChecked(checked)
+ 
+    def eventFilter(self, obj, event):
+        if obj is self.tdw and event.type() == QEvent.Resize:
+            self._reposition_floor_btn()
+        return super().eventFilter(obj, event)
 
     def _build_header(self):
         box = QWidget()
@@ -277,6 +391,33 @@ class OperatorWindow(QMainWindow):
         self.btn_view_menu.setMenu(self.view_menu)
         h.addWidget(self.btn_scen_menu)
         h.addWidget(self.btn_view_menu)
+
+        # live show-speed factor, next to the menus: scales the WHOLE show
+        # uniformly (all drones), so sync and deconfliction stay valid. Movable
+        # during the show -- the FD eases the factor and rescales the feedforward
+        # so the reference never jumps.
+        self.speed_slider = QSlider(Qt.Horizontal)
+        self.speed_slider.setMinimum(50)     # x0.5
+        self.speed_slider.setMaximum(150)    # x1.5
+        self.speed_slider.setValue(100)      # x1.0
+        self.speed_slider.setSingleStep(5)
+        self.speed_slider.setPageStep(10)
+        self.speed_slider.setFixedWidth(110)
+        self.speed_slider.setCursor(Qt.PointingHandCursor)
+        self.speed_slider.setToolTip("Show speed (all drones)")
+        self.speed_slider.setStyleSheet(
+            "QSlider::groove:horizontal{height:4px;background:#2A312D;border-radius:2px;}"
+            "QSlider::sub-page:horizontal{background:#8B938F;border-radius:2px;}"
+            "QSlider::handle:horizontal{background:#8B938F;border:1px solid #353D38;"
+            "width:14px;margin:-6px 0;border-radius:7px;}"
+            "QSlider::handle:horizontal:hover{background:#C7D0CB;}")
+        self.speed_value = QLabel("×1.0")
+        self.speed_value.setMinimumWidth(34)
+        self.speed_slider.valueChanged.connect(self._on_speed_changed)
+        h.addSpacing(8)
+        h.addWidget(QLabel("Speed"))
+        h.addWidget(self.speed_slider)
+        h.addWidget(self.speed_value)
         h.addStretch(1)
         return box
 
@@ -373,7 +514,7 @@ class OperatorWindow(QMainWindow):
         else:
             self.button_land_all.clicked.connect(h)
 
-        self.progress = QProgressBar()
+        self.progress = _ContrastBar()
         self.progress.setValue(0)
 
 
@@ -393,6 +534,11 @@ class OperatorWindow(QMainWindow):
         v.addLayout(grid)
         v.addWidget(self.progress)
         return group
+
+    def _on_speed_changed(self, value):
+        factor = value / 100.0
+        self.speed_value.setText(f"×{factor:.1f}")
+        self.fd.speed_target = factor
 
     def _kill_cbk(self):
         """Callback the drones panel wires to each row's kill button;
@@ -436,11 +582,15 @@ class OperatorWindow(QMainWindow):
         if conflicts and hook is not None:
             ok, report = hook(safety_distance=1.0)
             for line in report:
-                self.log_text('  ' + line)
-            conflicts = self.model.detect_conflicts(safety_distance=1.0)
+                logger.info('deconfliction: ' + line)
+                if any(w in line for w in ('could not', 'giving up', 'persist')):
+                    self.log_text('  ' + line)
+          conflicts = self.model.detect_conflicts(safety_distance=1.0)
             if ok and not conflicts:
                 self._set_safety_state("Deconflicted (on-path scheduling)", "ok")
-                self.log_text("Conflicts resolved: geometry untouched, timing reshaped.")
+                n_holds = sum(1 for l in report if ' waits ' in l)
+                self.log_text(f"Conflicts resolved ({n_holds} hold(s)): "
+                              "geometry untouched, timing reshaped.")
             else:
                 self._set_safety_state(f"{len(conflicts)} conflict(s) REMAIN", "err")
                 self.log_text("Scheduling could not clear everything - do not launch.")
@@ -477,6 +627,12 @@ class OperatorWindow(QMainWindow):
         self._update_scenario_labels(scenario)
         self._refresh_chronograms()
         self.telemetry_recorder.reset(fd.ids)
+        # every scenario change resets the show speed back to x1.0
+        self.fd.speed_target = 1.0
+        self.speed_slider.setValue(100)
+        self.speed_value.setText("×1.0")
+        # kill buttons live in the drones panel now, rebuilt with it in
+        # _replace_drones_panel
         self._reset_controls()
 
     def _replace_drones_panel(self, ids, colors, trajs):
