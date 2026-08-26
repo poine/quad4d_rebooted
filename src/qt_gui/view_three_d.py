@@ -9,6 +9,7 @@ from PySide6.QtGui import (QFont, QVector3D)
 
 logger = logging.getLogger(__name__)
 
+VOLIERE_FLOOR = ((-5.5, 5.5), (-7.0, 7.0))
 
 class ThreeDWidget(gl.GLViewWidget):
     def __init__(self, model=None):
@@ -17,12 +18,13 @@ class ThreeDWidget(gl.GLViewWidget):
 
         self.scene_items={}
         self.build_grid(model)
+        self.build_floor()
         if model is not None:
             self.build_arena(model)
             self.arena = FlightArena(self, model.arena)
         self.build_frames()
 
-        defaults = [('grid', True), ('arena', False) , ('frames', False)]
+        defaults = [('grid', True), ('floor', True), ('arena', False) , ('frames', False)]
         for k, s in defaults:
             try: self.set_item_visible(k,s)
             except KeyError: pass
@@ -46,9 +48,9 @@ class ThreeDWidget(gl.GLViewWidget):
 
 
     def display_new_trajectory(self, model, idx=0, show_details=True, show_super_details=False,
-                               show_quad=True, show_ref_quad=False):
+                               show_quad=True, show_ref_quad=False), show_ref_traj=True):
         logger.debug('in display_new_trajectory')
-        trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details, show_quad, show_ref_quad)
+        trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details, show_quad, show_ref_quad, show_ref_traj)
         if idx < len(self.traj_items):
             self.traj_items[idx].remove(self)
             self.traj_items[idx] = trj
@@ -58,6 +60,17 @@ class ThreeDWidget(gl.GLViewWidget):
     def update_plot(self, model, idx=0): 
         logger.debug('in update_trajectory')
         self.traj_items[idx].update(model.get_trajectory(idx))
+
+    def set_trajectories(self, model, show_details=False, show_quad=True, show_ref_quad=True,
+                         show_ref_traj=True):
+        n_new = model.trajectory_nb()
+        for i in range(n_new):
+            self.display_new_trajectory(model, i, show_details=show_details,
+                                        show_quad=show_quad, show_ref_quad=show_ref_quad,
+                                        show_ref_traj=show_ref_traj)
+        while len(self.traj_items) > n_new:
+            self.traj_items.pop().remove(self)
+ 
 
     def set_quad_pose(self, Tenu2flu, idx=0):
         self.traj_items[idx].set_quad_pose(Tenu2flu)
@@ -69,14 +82,18 @@ class ThreeDWidget(gl.GLViewWidget):
     def build_grid(self, model): # FIXME: needs love
         extends = model.arena.extends if model is not None else ((-5, 5), (-5, 5), (0, 10.))
         grid_item = gl.GLGraphicsItem.GLGraphicsItem()
-        grid_size = QVector3D(10,10, 1)
-        gx = gl.GLGridItem(grid_size, parentItem=grid_item)
+        # all three grids sized to the volière plan (1 m cells, centred), so
+        # the two vertical walls end exactly on the floor's edges and their
+        # cells line up with the plan's 1 m blocks
+        (fx0, fx1), (fy0, fy1) = VOLIERE_FLOOR
+        Lx, Ly, Hz = fx1 - fx0, fy1 - fy0, 10.
+        gx = gl.GLGridItem(QVector3D(Hz, Ly, 1), parentItem=grid_item)  # y-z wall at x_min
         gx.rotate(90, 0, 1, 0)
-        gx.translate(-5, 0, 5)
-        gy = gl.GLGridItem(grid_size, parentItem=grid_item)
+        gx.translate(fx0, 0, Hz / 2)
+        gy = gl.GLGridItem(QVector3D(Lx, Hz, 1), parentItem=grid_item)  # x-z wall at y_min
         gy.rotate(90, 1, 0, 0)
-        gy.translate(0, -5, 5)
-        gz = gl.GLGridItem(grid_size, parentItem=grid_item)
+        gy.translate(0, fy0, Hz / 2)
+        gz = gl.GLGridItem(QVector3D(Lx, Ly, 1), parentItem=grid_item)  # floor
         self.addItem(grid_item)
         self.scene_items['grid'] = grid_item
         
@@ -91,6 +108,33 @@ class ThreeDWidget(gl.GLViewWidget):
         for pos in poss: gl.GLLinePlotItem(arena_item, pos=pos, color=col, width=1)
         self.addItem(arena_item)
         self.scene_items['arena'] = arena_item
+
+
+    def build_floor(self):
+        """Lay the volière plan (media/voliere_plan.png, cropped to the room)
+        flat on the ground (z=0), scaled to the cage. Alignment is by cage
+        dimensions: the image spans VOLIERE_FLOOR in ENU metres -- tune those
+        to line the plan up with the real cage."""
+        import os
+        path = os.path.join(os.path.dirname(__file__), 'media', 'voliere_plan.png')
+        if not os.path.exists(path):
+            return
+        img = mpimg.imread(path)                       # (H, W, 3|4), float [0,1]
+        if img.ndim == 2:
+            img = np.dstack([img] * 3)
+        if img.shape[2] == 3:                          # add opaque alpha
+            img = np.dstack([img, np.ones(img.shape[:2], dtype=img.dtype)])
+        tex = (img * 255).astype(np.ubyte)
+        # GLImageItem data is indexed [x, y]: put image cols along x, rows
+        # along y, and flip rows so the image top maps to +y (north)
+        data = np.ascontiguousarray(tex[::-1].transpose(1, 0, 2))
+        floor = gl.GLImageItem(data)
+        (x0, x1), (y0, y1) = VOLIERE_FLOOR
+        W, H = data.shape[0], data.shape[1]
+        floor.scale((x1 - x0) / W, (y1 - y0) / H, 1.)
+        floor.translate(x0, y0, 0.)
+        self.addItem(floor)
+        self.scene_items['floor'] = floor
 
     def build_frames(self):
         frames_item = gl.GLGraphicsItem.GLGraphicsItem()
@@ -146,11 +190,11 @@ class FlightArena:
 # 3D representation of a trajectory (reference and real tracks, reference and real quads, waypoints)
 #
 class TrajItem:
-    _colors = [(0.12, 0.47, 0.7 , 1),
-               (1.  , 0.5, 0.055, 1),
-               (0.17, 0.63, 0.17, 1)]
+    _colors = [(1.0  , 0.83, 0.0  , 1),   # yellow      #FFD400
+               (0.0  , 0.90, 0.46 , 1),   # bright green #00E676
+               (0.835, 0.0 , 0.976, 1)]   # magenta/violet #D500F9
     
-    def __init__(self, traj, parent, idx, show_details, show_super_details, show_quad=False, show_ref_quad=False):
+    def __init__(self, traj, parent, idx, show_details, show_super_details, show_quad=False, show_ref_quad=False, show_ref_traj=True):
         self.waypoints_item = None
         self.waypoints_text_items = None
         self.waypoints_line_item = None
@@ -192,6 +236,7 @@ class TrajItem:
         Ys = np.array([traj.get(t) for t in time])
         self.ref_traj_line_item = gl.GLLinePlotItem(pos=Ys[:,:3,0], color=my_color, width=3., antialias=True, mode='lines')
         parent.addItem(self.ref_traj_line_item)
+        self.ref_traj_line_item.setVisible(show_ref_traj)
         self.traj_line_item = gl.GLLinePlotItem(pos=np.zeros((1,3)), color=my_color_faded, width=2., antialias=True)
         parent.addItem(self.traj_line_item)
 
@@ -216,7 +261,9 @@ class TrajItem:
         if self.waypoints_text_items is not None:
             for it in self.waypoints_text_items: parent.removeItem(it)
         parent.removeItem(self.ref_traj_line_item)
+        if self.traj_line_item is not None: parent.removeItem(self.traj_line_item)
         parent.removeItem(self.quad_item)
+        parent.removeItem(self.ref_quad_item)
 
     def set_quad_pose(self, Tenu2flu):
         self.quad_item.setTransform(pg.Transform3D(Tenu2flu))
