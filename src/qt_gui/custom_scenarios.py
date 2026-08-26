@@ -34,6 +34,30 @@ def load_recent_names(path=RECENT_PATH):
         return []
     return [str(n) for n in names][:RECENT_MAX]
 
+FLEET_PATH = os.path.join(os.path.dirname(__file__), 'data', 'fleet_ids.yaml')
+ 
+ 
+def load_fleet_ids(path=FLEET_PATH):
+    """The operator's last per-slot drone ids, so changing scenario keeps the
+    same mapping instead of resetting to the defaults."""
+    try:
+        with open(path) as f:
+            ids = yaml.safe_load(f) or []
+    except FileNotFoundError:
+        return []
+    except Exception as e:
+        logger.warning(f'fleet ids file unreadable, ignoring it: {e}')
+        return []
+    return [int(i) for i in ids]
+ 
+ 
+def save_fleet_ids(ids, path=FLEET_PATH):
+    """Remember the per-slot ids; merge with what's stored so editing a
+    2-drone scenario keeps the 3rd slot set from a previous 3-drone one."""
+    merged = list(ids) + load_fleet_ids(path)[len(ids):]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        yaml.safe_dump([int(i) for i in merged], f, sort_keys=False)
 
 def save_recent_name(name, path=RECENT_PATH, max_n=RECENT_MAX):
     """Record a scenario as just launched (dedup, most recent first)."""
@@ -89,6 +113,19 @@ def save_custom_scenario(name, desc, ids, trajs, path=DEFAULT_PATH):
         yaml.safe_dump(entries, f, allow_unicode=True, sort_keys=False)
     logger.info(f"custom scenario '{name}' saved to {path}")
 
+def delete_custom_scenario(name, path=DEFAULT_PATH):
+    """Remove the custom scenario named `name` (no-op if absent)."""
+    try:
+        with open(path) as f:
+            entries = yaml.safe_load(f) or []
+    except FileNotFoundError:
+        return
+    kept = [e for e in entries if e.get('name') != name]
+    if len(kept) == len(entries):
+        return
+    with open(path, 'w') as f:
+        yaml.safe_dump(kept, f, allow_unicode=True, sort_keys=False)
+    logger.info(f"custom scenario '{name}' deleted from {path}")
 
 # same monochrome look as the scenario picker (kept local to avoid a
 # circular import: scenario_picker imports this module)
@@ -144,13 +181,16 @@ class CustomScenarioDialog(QDialog):
 
     On accept, self.result_scenario holds (name, desc, ids, trajs)."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial=None):
+        """`initial`, if given, is (name, ids, trajs) to pre-fill the form
+        (used to Modify or Duplicate an existing scenario)."""
         super().__init__(parent)
         self.setWindowTitle("Click'n Fly - Compose custom scenario")
         self.resize(820, 520)
         self.result_scenario = None
         self._rows = []   # list of dicts: {widget, spin, traj}
-
+        self._initials = initial
+      
         outer = QVBoxLayout(self)
         outer.setContentsMargins(14, 14, 14, 14)
         outer.setSpacing(10)
@@ -223,6 +263,14 @@ class CustomScenarioDialog(QDialog):
         outer.addLayout(buttons)
 
         self.setStyleSheet(STYLE)
+
+        # pre-fill from an existing scenario (Modify / Duplicate)
+        if initial is not None:
+            init_name, init_ids, init_trajs = initial
+            self.name_edit.setText(str(init_name))
+            for _id, tname in zip(init_ids, init_trajs):
+                self._add_row(tname)
+                self._rows[-1]['spin'].setValue(int(_id))
 
     def _apply_filter(self, text):
         text = text.lower()
