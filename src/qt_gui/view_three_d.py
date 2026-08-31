@@ -48,7 +48,7 @@ class ThreeDWidget(gl.GLViewWidget):
 
 
     def display_new_trajectory(self, model, idx=0, show_details=True, show_super_details=False,
-                               show_quad=True, show_ref_quad=False), show_ref_traj=True):
+                               show_quad=True, show_ref_quad=False, show_ref_traj=True):
         logger.debug('in display_new_trajectory')
         trj = TrajItem(model.get_trajectory(idx), self, idx, show_details, show_super_details, show_quad, show_ref_quad, show_ref_traj)
         if idx < len(self.traj_items):
