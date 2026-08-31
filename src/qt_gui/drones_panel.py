@@ -230,7 +230,7 @@ class _DroneRow(QFrame):
 
 
     def set_values(self, alt, spd, batt=None, limits=None):
-       def cell(label, value, unit, fmt, color=_VALUE, bold=False):
+      def cell(label, value, unit, fmt, color=_VALUE, bold=False):
             v = (fmt % value + unit) if value is not None else "\u2014"
             weight = "font-weight:700;" if bold else ""
             return f'{label} <span style="color:{color};{weight}">{v}</span>'
