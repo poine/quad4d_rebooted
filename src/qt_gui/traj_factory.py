@@ -453,23 +453,22 @@ class ShowRosetteC(p_mt.Circle):
 
 
 class ShowTornadoInner(p_mt.Circle):
-    name, desc = 'show tornado inner', 'concentric ring r=1.5 z=1.8 v=1.7'
-    def __init__(self): p_mt.Circle.__init__(self, [0,0,1.8], r=1.5, v=1.7, psit=p_t1d.CstOne(0))
+    name, desc = 'show tornado inner', 'concentric ring r=1.5 z=1.5 v=1.7'
+    def __init__(self): p_mt.Circle.__init__(self, [0,0,1.5], r=1.5, v=1.7, psit=p_t1d.CstOne(0))
 class ShowTornadoMid(p_mt.Circle):
-    name, desc = 'show tornado mid', 'concentric ring r=2.5 z=2.6 v=2.0'
-    def __init__(self): p_mt.Circle.__init__(self, [0,0,2.6], r=2.5, v=2.0, psit=p_t1d.CstOne(0))
+    name, desc = 'show tornado mid', 'concentric ring r=2.5 z=3.0 v=2.0'
+    def __init__(self): p_mt.Circle.__init__(self, [0,0,3.0], r=2.5, v=2.0, psit=p_t1d.CstOne(0))
 class ShowTornadoOuter(p_mt.Circle):
-    name, desc = 'show tornado outer', 'concentric ring r=3 z=3.8 v=2.5'
-
-    def __init__(self): p_mt.Circle.__init__(self, [0,0,3.8], r=3., v=2.5, psit=p_t1d.CstOne(0))
+    name, desc = 'show tornado outer', 'concentric ring r=3 z=4.5 v=2.5'
+    def __init__(self): p_mt.Circle.__init__(self, [0,0,4.5], r=3., v=2.5, psit=p_t1d.CstOne(0))
 
 
 class ShowTwinLow(p_mt.Circle):
-    name, desc = 'show twin ring low', 'r=2 v=2 z=1.8 CCW'
-    def __init__(self): p_mt.Circle.__init__(self, [0,0,1.8], r= 2., v=2., psit=p_t1d.CstOne(0))
+    name, desc = 'show twin ring low', 'r=2 v=2 z=1.5 CCW'
+    def __init__(self): p_mt.Circle.__init__(self, [0,0,1.5], r= 2., v=2., psit=p_t1d.CstOne(0))
 class ShowTwinHigh(p_mt.Circle):
-    name, desc = 'show twin ring high', 'r=2 v=2 z=3.2 CW'
-    def __init__(self): p_mt.Circle.__init__(self, [0,0,3.2], r=-2., v=2., psit=p_t1d.CstOne(0))
+    name, desc = 'show twin ring high', 'r=2 v=2 z=4.0 CW'
+    def __init__(self): p_mt.Circle.__init__(self, [0,0,4.0], r=-2., v=2., psit=p_t1d.CstOne(0))
 
 
 class ShowPulseA(p_mt.Circle):
@@ -537,6 +536,138 @@ class ShowStar(Traj45):
         wps.append(wps[0])  # close the loop (periodic bc, like Traj45)
         super().__init__(wps)
 
+# --- analytic showpieces built as sums of sinusoids ---------------------
+# Any curve written as a sum of sinusoids has ALL its time-derivatives in
+# closed form, so the flat output (pos..snap) is exact -> clean diff-flatness
+# and good tracking. _harm returns [f, f', f'', f''', f''''] for one axis.
+def _harm(dt, terms):
+        out = np.zeros(5)
+    for amp, om, ph, kind in terms:
+        th = om * dt + ph
+        if kind == 'c':          # d^n/dt^n [cos] cycles cos,-sin,-cos,sin,...
+            vals = (np.cos(th), -np.sin(th), -np.cos(th), np.sin(th), np.cos(th))
+        else:                    # sin
+            vals = (np.sin(th),  np.cos(th), -np.sin(th), -np.cos(th), np.sin(th))
+        p = 1.0
+        for n in range(5):
+            out[n] += amp * p * vals[n]
+            p *= om              # amp * om^n * vals[n]
+    return out
+ 
+ 
+# Spirograph / epicyclic rosette: sum of two rotating vectors. w2 = -k*w1 (k
+# integer) so it closes after one base turn; petal count set by k. Hypnotic,
+# analytic, solo (no inter-drone conflict).
+class ShowSpirograph(p_mt.Trajectory):
+    name, desc = 'show spirograph', 'epicyclic rosette (two superposed rotations), solo'
+    def __init__(self, R=1.6, a=0.9, k=4, om=0.28, z=2.5, phase=0.):
+        self.R, self.a, self.k, self.om, self.z, self.phase = R, a, k, om, z, phase
+        self.t0, self.duration = 0., 2*np.pi/om
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt = t - self.t0
+        w1, w2 = self.om, -self.k*self.om
+        Yc = np.zeros((5, 4))
+        Yc[:, p_mt._x] = _harm(dt, [(self.R, w1, self.phase, 'c'), (self.a, w2, self.phase, 'c')])
+        Yc[:, p_mt._y] = _harm(dt, [(self.R, w1, self.phase, 's'), (self.a, w2, self.phase, 's')])
+        Yc[:, p_mt._z] = _harm(dt, [(self.z, 0., 0., 'c')])
+        return Yc.T
+ 
+# three stacked rosettes (different petal counts), height-separated >= margin
+# so the trio is safe by construction (a rosette "tower").
+class ShowSpirographLow(ShowSpirograph):
+    name, desc = 'show spirograph low', 'rosette k=3, z=1.5'
+    def __init__(self): super().__init__(k=3, om=0.26, z=1.5)
+class ShowSpirographMid(ShowSpirograph):
+    name, desc = 'show spirograph mid', 'rosette k=4, z=3.0'
+    def __init__(self): super().__init__(k=4, om=0.26, z=3.0)
+class ShowSpirographHigh(ShowSpirograph):
+    name, desc = 'show spirograph high', 'rosette k=5, z=4.5'
+    def __init__(self): super().__init__(k=5, om=0.26, z=4.5)
+ 
+ 
+# (p,q) torus knot: product-to-sum turns cos(q.)cos(p.) etc. into sums of
+# sinusoids, so it's analytic like the rest. Looks genuinely 3D. Solo.
+class ShowKnot(p_mt.Trajectory):
+    name, desc = 'show knot', '(2,3) torus knot, solo 3D showpiece'
+    def __init__(self, Rmaj=1.5, r=0.7, p=2, q=3, om=0.30, zc=3.0):
+        self.Rmaj, self.r, self.p, self.q, self.om, self.zc = Rmaj, r, p, q, om, zc
+        self.t0, self.duration = 0., 2*np.pi/om
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt = t - self.t0
+        w, r2 = self.om, self.r/2.
+        wp, wpq, wmq, wq = self.p*w, (self.p+self.q)*w, (self.p-self.q)*w, self.q*w
+        Yc = np.zeros((5, 4))
+        Yc[:, p_mt._x] = _harm(dt, [(self.Rmaj, wp, 0., 'c'), (r2, wpq, 0., 'c'), (r2, wmq, 0., 'c')])
+        Yc[:, p_mt._y] = _harm(dt, [(self.Rmaj, wp, 0., 's'), (r2, wpq, 0., 's'), (r2, wmq, 0., 's')])
+        Yc[:, p_mt._z] = _harm(dt, [(self.zc, 0., 0., 'c'), (self.r, wq, 0., 's')])
+        return Yc.T
+ 
+ 
+# Fountain: each drone flies the SAME vertical circle (radius R at horizontal
+# offset rho0, azimuth phi), so the trio at phi = 0/120/240 stays 120 deg apart
+# at every instant -> pairwise distance = sqrt(3)*s(t) >= sqrt(3)*(rho0-R),
+# safe by construction. Constant speed R*om. A blooming 3-arm fountain.
+class _Fountain(p_mt.Trajectory):
+    def __init__(self, phi=0., rho0=2.0, R=1.0, z0=2.5, om=0.9):
+        self.cphi, self.sphi = np.cos(phi), np.sin(phi)
+        self.rho0, self.R, self.z0, self.om = rho0, R, z0, om
+        self.t0, self.duration = 0., 2*np.pi/om
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt, w = t - self.t0, self.om
+        Yc = np.zeros((5, 4))
+        Yc[:, p_mt._x] = _harm(dt, [(self.rho0*self.cphi, 0., 0., 'c'), (self.R*self.cphi, w, 0., 'c')])
+        Yc[:, p_mt._y] = _harm(dt, [(self.rho0*self.sphi, 0., 0., 'c'), (self.R*self.sphi, w, 0., 'c')])
+        Yc[:, p_mt._z] = _harm(dt, [(self.z0, 0., 0., 'c'), (self.R, w, 0., 's')])
+        return Yc.T
+class FountainA(_Fountain):
+    name, desc = 'fountain a', 'fountain arc, azimuth 0'
+    def __init__(self): super().__init__(phi=0.)
+class FountainB(_Fountain):
+    name, desc = 'fountain b', 'fountain arc, azimuth 120'
+    def __init__(self): super().__init__(phi=2*np.pi/3)
+class FountainC(_Fountain):
+    name, desc = 'fountain c', 'fountain arc, azimuth 240'
+    def __init__(self): super().__init__(phi=4*np.pi/3)
+class FountainOpp(_Fountain):   # paired with 'fountain a' for a 2-drone version
+    name, desc = 'fountain opp', 'fountain arc, azimuth 180'
+    def __init__(self): super().__init__(phi=np.pi)
+ 
+ 
+# Morphing formation: each drone oscillates between a 'line' point L and a
+# 'triangle' point T with beta(t) = (1-cos om t)/2, so pos = mid + amp*cos(om t)
+# (a pure sinusoid per axis). L and T are chosen so the min pairwise distance
+# over the whole morph stays ~1.9 m -> safe by construction.
+class _Morph(p_mt.Trajectory):
+    def __init__(self, L, T, z=2.0, om=0.6):
+        self.L, self.T, self.z, self.om = np.asarray(L, float), np.asarray(T, float), z, om
+        self.t0, self.duration = 0., 2*np.pi/om
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt, w = t - self.t0, self.om
+        mid = 0.5*(self.L + self.T)          # centre of the oscillation
+        amp = -0.5*(self.T - self.L)         # coefficient of cos(w t)
+        Yc = np.zeros((5, 4))
+        Yc[:, p_mt._x] = _harm(dt, [(mid[0], 0., 0., 'c'), (amp[0], w, 0., 'c')])
+        Yc[:, p_mt._y] = _harm(dt, [(mid[1], 0., 0., 'c'), (amp[1], w, 0., 'c')])
+        Yc[:, p_mt._z] = _harm(dt, [(self.z, 0., 0., 'c')])
+        return Yc.T
+_R_MORPH = 1.6
+class MorphA(_Morph):
+    name, desc = 'morph a', 'line<->triangle morph, drone A'
+    def __init__(self):
+        super().__init__(L=[-2., 0.], T=[_R_MORPH*np.cos(np.radians(210)), _R_MORPH*np.sin(np.radians(210))])
+class MorphB(_Morph):
+    name, desc = 'morph b', 'line<->triangle morph, drone B'
+    def __init__(self): super().__init__(L=[0., 0.], T=[0., _R_MORPH])
+class MorphC(_Morph):
+    name, desc = 'morph c', 'line<->triangle morph, drone C'
+    def __init__(self):
+        super().__init__(L=[2., 0.], T=[_R_MORPH*np.cos(np.radians(330)), _R_MORPH*np.sin(np.radians(330))])
+ 
+
 
 
 class ConflitTriA(p_mt.SmoothBackAndForth):
@@ -557,7 +688,7 @@ class ScaraRace(p_mt.CompositeTraj):
         z, psi = 2.5, 0.
         t_move, t_dwell = 2.2, 0.4   
         coins = [[-2,-2,z,psi], [2,-2,z,psi], [2,2,z,psi], [-2,2,z,psi]]
-        coins.append(coins[0])                 
+        coins.append(coins[0])                  #referme la boucle 
         steps = []
         for i in range(len(coins)-1):
             steps.append(p_mt.SmoothLine(coins[i], coins[i+1], duration=t_move))  
@@ -567,22 +698,122 @@ class ScaraRace(p_mt.CompositeTraj):
 
 
 def _spirale_montante(a0):
-    r, v, N = 2., 2., 2;   om = v/r;  om_z = om/(2*N)
-    return p_mt.Circle([0,0,4.], r=r, v=v, alpha0=a0,
-                       psit=p_t1d.CstOne(0), zt=p_t1d.SinOne(c=4., a=2.5, om=om_z))
+    # N tours a `spacing` m d'ecart vertical ; depart bas pour rester sous
+    # le plafond : montee totale = spacing*N, sommet = z_min + spacing*N
+    r, v, N, spacing, z_min = 2., 2., 3, 1.8, 1.0
+    om = v/r;  om_z = om/(2*N)
+    a = spacing*N/2.        # amplitude pour l'ecart par tour voulu
+    c = z_min + a           # bas de l'oscillation a z_min (sommet a z_min+2a)
+    return p_mt.Circle([0,0,c], r=r, v=v, alpha0=a0,
+                       psit=p_t1d.CstOne(0), zt=p_t1d.SinOne(c=c, a=a, om=om_z))
 
 class SpiraleMontanteA(ClosedLoop):
-    name, desc = 'spirale montante a', 'helice 1/3 : r=2 v=2, 120 deg, monte en 2 tours puis redescend en douceur'
+    name, desc = 'spirale montante a', 'helice 1/3 : r=2 v=2, 120 deg, monte en 3 tours puis redescend en douceur'
     def __init__(self): super().__init__(_spirale_montante(0.))
 class SpiraleMontanteB(ClosedLoop):
-    name, desc = 'spirale montante b', 'helice 2/3 : r=2 v=2, 120 deg, monte en 2 tours puis redescend en douceur'
+    name, desc = 'spirale montante b', 'helice 2/3 : r=2 v=2, 120 deg, monte en 3 tours puis redescend en douceur'
     def __init__(self): super().__init__(_spirale_montante(2*np.pi/3))
 class SpiraleMontanteC(ClosedLoop):
-    name, desc = 'spirale montante c', 'helice 3/3 : r=2 v=2, 120 deg, monte en 2 tours puis redescend en douceur'
+    name, desc = 'spirale montante c', 'helice 3/3 : r=2 v=2, 120 deg, monte en 3 tours puis redescend en douceur'
     def __init__(self): super().__init__(_spirale_montante(4*np.pi/3))
 
 
+class _Flower(p_mt.Trajectory):
+    def __init__(self, a0, Rc=1.85, Ra=1.15, om=0.9, omr=0.3, z=2.5):
+        self.a0, self.Rc, self.Ra, self.om, self.omr, self.z = a0, Rc, Ra, om, omr, z
+        self.t0, self.duration = 0., 2*np.pi/omr   # one full breath
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt = t - self.t0
+        w, wr = self.om, self.omr
+        phi = w*dt + self.a0
+        c, s = np.cos(phi), np.sin(phi)
+        R  =  self.Rc - self.Ra*np.cos(wr*dt)
+        R1 =  self.Ra*wr    *np.sin(wr*dt)
+        R2 =  self.Ra*wr**2 *np.cos(wr*dt)
+        R3 = -self.Ra*wr**3 *np.sin(wr*dt)
+        R4 = -self.Ra*wr**4 *np.cos(wr*dt)
+        Yc = np.zeros((5, 4))
+        Yc[0, p_mt._x], Yc[0, p_mt._y], Yc[0, p_mt._z] = R*c, R*s, self.z
+        Yc[1, p_mt._x] = R1*c - R*w*s
+        Yc[1, p_mt._y] = R1*s + R*w*c
+        Yc[2, p_mt._x] = (R2 - R*w**2)*c - 2*R1*w*s
+        Yc[2, p_mt._y] = (R2 - R*w**2)*s + 2*R1*w*c
+        Yc[3, p_mt._x] = (R3 - 3*R1*w**2)*c + (-3*R2*w + R*w**3)*s
+        Yc[3, p_mt._y] = (R3 - 3*R1*w**2)*s + ( 3*R2*w - R*w**3)*c
+        Yc[4, p_mt._x] = (R4 - 6*R2*w**2 + R*w**4)*c + (-4*R3*w + 4*R1*w**3)*s
+        Yc[4, p_mt._y] = (R4 - 6*R2*w**2 + R*w**4)*s + ( 4*R3*w - 4*R1*w**3)*c
+        return Yc.T
+ 
+class FlowerA(_Flower):
+    name, desc = 'flower a', 'blooming flower 1/3 (3 drones, breathing)'
+    def __init__(self): super().__init__(0.)
+class FlowerB(_Flower):
+    name, desc = 'flower b', 'blooming flower 2/3'
+    def __init__(self): super().__init__(2*np.pi/3)
+class FlowerC(_Flower):
+    name, desc = 'flower c', 'blooming flower 3/3'
+    def __init__(self): super().__init__(4*np.pi/3)
+ 
+ 
+# --- Mexican wave: 3 drones stay put in a row (fixed x, y) and bob up/down
+#     in z with a phase offset -> a travelling "ola". Fixed >2m apart -> safe.
+class _VerticalBob(p_mt.Trajectory):
+    def __init__(self, x0, y0, zc, za, om, phi):
+        self.x0, self.y0, self.zc, self.za, self.om, self.phi = x0, y0, zc, za, om, phi
+        self.t0, self.duration = 0., 2*np.pi/om   # one full bob
+    def reset(self, t0): self.t0 = t0
+    def get(self, t):
+        dt = t - self.t0
+        a = self.om*dt + self.phi
+        s, c = np.sin(a), np.cos(a)
+        Yc = np.zeros((5, 4))
+        Yc[0, p_mt._x], Yc[0, p_mt._y] = self.x0, self.y0
+        Yc[0, p_mt._z] = self.zc + self.za*s
+        Yc[1, p_mt._z] =  self.za*self.om    *c
+        Yc[2, p_mt._z] = -self.za*self.om**2 *s
+        Yc[3, p_mt._z] = -self.za*self.om**3 *c
+        Yc[4, p_mt._z] =  self.za*self.om**4 *s
+        return Yc.T
+ 
+class WaveLeft(_VerticalBob):
+    name, desc = 'wave left', 'vertical bob at x=-2.5'
+    def __init__(self): super().__init__(-2.5, 0., 2.5, 1.2, 1.0, 0.)
+class WaveMid(_VerticalBob):
+    name, desc = 'wave mid', 'vertical bob at x=0'
+    def __init__(self): super().__init__(0., 0., 2.5, 1.2, 1.0, 2*np.pi/3)
+class WaveRight(_VerticalBob):
+    name, desc = 'wave right', 'vertical bob at x=+2.5'
+    def __init__(self): super().__init__(2.5, 0., 2.5, 1.2, 1.0, 4*np.pi/3)
+ 
+ 
 
+def _helix_strand(a0, z_up=True):
+    r, v, N, spacing, z_min = 2., 2., 3, 1.8, 1.0
+    om = v/r;  om_z = om/(2*N)
+    a = spacing*N/2.;  c = z_min + a
+    return p_mt.Circle([0, 0, c], r=r, v=v, alpha0=a0, psit=p_t1d.CstOne(0),
+                       zt=p_t1d.SinOne(c=c, a=(a if z_up else -a), om=om_z))
+ 
+class DnaA(ClosedLoop):
+    name, desc = 'dna strand a', 'helix strand, 0 deg, z up'
+    def __init__(self): super().__init__(_helix_strand(0., z_up=True))
+class DnaB(ClosedLoop):
+    name, desc = 'dna strand b', 'helix strand, 180 deg, z opposite (weaves)'
+    def __init__(self): super().__init__(_helix_strand(np.pi, z_up=False))
+ 
+ 
+# --- Cascade: the same circle at 3 heights, 120deg apart 
+class CascadeLow(p_mt.Circle):
+    name, desc = 'cascade low', 'circle r=2 z=1.5'
+    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 1.5], r=2., v=1.5, alpha0=0.,        psit=p_t1d.CstOne(0))
+class CascadeMid(p_mt.Circle):
+    name, desc = 'cascade mid', 'circle r=2 z=3.0, +120 deg'
+    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 3.0], r=2., v=1.5, alpha0=2*np.pi/3, psit=p_t1d.CstOne(0))
+class CascadeHigh(p_mt.Circle):
+    name, desc = 'cascade high', 'circle r=2 z=4.5, +240 deg'
+    def __init__(self): p_mt.Circle.__init__(self, [0, 0, 4.5], r=2., v=1.5, alpha0=4*np.pi/3, psit=p_t1d.CstOne(0))
+ 
 
 
 
@@ -673,6 +904,20 @@ TrajFactory.register(ShowLissajous, 'show')
 TrajFactory.register(ShowLissajousLow, 'show')
 TrajFactory.register(ShowStar, 'show')
 
+TrajFactory.register(ShowSpirograph, 'show')
+TrajFactory.register(ShowSpirographLow, 'show')
+TrajFactory.register(ShowSpirographMid, 'show')
+TrajFactory.register(ShowSpirographHigh, 'show')
+TrajFactory.register(ShowKnot, 'show')
+ 
+TrajFactory.register(FountainA, 'show')
+TrajFactory.register(FountainB, 'show')
+TrajFactory.register(FountainC, 'show')
+TrajFactory.register(FountainOpp, 'show')
+TrajFactory.register(MorphA, 'show')
+TrajFactory.register(MorphB, 'show')
+TrajFactory.register(MorphC, 'show')
+
 TrajFactory.register(SpiraleA, 'show')
 TrajFactory.register(SpiraleB, 'show')
 TrajFactory.register(SpiraleC, 'show')
@@ -682,6 +927,22 @@ TrajFactory.register(ScaraRace, 'show')
 TrajFactory.register(SpiraleMontanteA, 'show')
 TrajFactory.register(SpiraleMontanteB, 'show')
 TrajFactory.register(SpiraleMontanteC, 'show')
+
+TrajFactory.register(FlowerA, 'show')
+TrajFactory.register(FlowerB, 'show')
+TrajFactory.register(FlowerC, 'show')
+ 
+TrajFactory.register(WaveLeft, 'show')
+TrajFactory.register(WaveMid, 'show')
+TrajFactory.register(WaveRight, 'show')
+ 
+TrajFactory.register(DnaA, 'show')
+TrajFactory.register(DnaB, 'show')
+ 
+TrajFactory.register(CascadeLow, 'show')
+TrajFactory.register(CascadeMid, 'show')
+TrajFactory.register(CascadeHigh, 'show')
+ 
 
 TrajFactory.register(ConflitTriA, 'Conflicts')
 TrajFactory.register(ConflitTriB, 'Conflicts')
