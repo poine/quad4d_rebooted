@@ -304,7 +304,7 @@ class OperatorWindow(QMainWindow):
         win.show()
         win.raise_()
 
-   def _show_chronogram(self, key):
+    def _show_chronogram(self, key):
         win = self._chrono_windows.get(key)
         if win is not None and win.isVisible():
             win.raise_(); win.activateWindow()
