@@ -333,7 +333,7 @@ class FlightDirector:
         #<field name="enu_y"     type="float" unit="m">ENU y position in vision frame</field>
         #<field name="enu_z"
         #breakpoint() 
-        pos_enu = [msg[_c] for _c in ['enu_x', 'enu_z', 'enu_y']]
+        pos_enu = [msg[_c] for _c in ['enu_x', 'enu_y', 'enu_z']]
         #x = msg['enu_x']
         #y = msg['enu_z']
         #z = msg['enu_y']
@@ -1006,9 +1006,9 @@ def parse_cli():
 
             
 def main():
-    logging.basicConfig(level=logging.INFO)
-    logger.setLevel(logging.DEBUG) if args.verbose else logging.INFO
     args = parse_cli()
+    logging.basicConfig(level=logging.INFO)
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
     cnf = Application(args)
     def _quit(sig, frame):
         #print(chr(8)+chr(8),end="") # remove ^C from console... nope...
