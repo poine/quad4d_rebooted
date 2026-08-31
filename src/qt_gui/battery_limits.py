@@ -24,8 +24,7 @@ FULL_CELL_V = 4.2          # a LiPo cell, fully charged
 DEFAULT_CELLS = 3          # the lab packs are 3S
 
 class BatteryLimits:
-	def __init__(self, low=DEFAULT_LOW_V, crit=DEFAULT_CRIT_V,
-                 cells=DEFAULT_CELLS, source='default'):
+	def __init__(self, low=DEFAULT_LOW_V, crit=DEFAULT_CRIT_V, cells=DEFAULT_CELLS, source='default'):
         self.low, self.crit, self.source = float(low), float(crit), source
         self.cells = max(1, int(cells))
 
