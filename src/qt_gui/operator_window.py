@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QLabel, QPushButton,
 from drones_panel import DronesPanel
 import view_three_d as vtd
 import view_chronograms as view_chrono
-from live_telemetry import TelemetryRecorder, LiveTelemetryWindow, PLOTS as LIVE_PLOTS, PLOT_TITLES as LIVE_TITLES)
+from live_telemetry import (TelemetryRecorder, LiveTelemetryWindow, PLOTS as LIVE_PLOTS, PLOT_TITLES as LIVE_TITLES)
 
 logger = logging.getLogger(__name__)
 
