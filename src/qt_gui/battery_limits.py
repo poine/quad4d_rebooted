@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #
 # Per-drone battery thresholds, read from each aircraft's Paparazzi airframe
-# file (<section name="BAT">)
 #
 #   <section name="BAT">
 #     <define name="LOW_BAT_LEVEL"    value="10.5" unit="V"/>   <!-- plan to land -->
@@ -23,13 +22,20 @@ DEFAULT_CRIT_V = 3.3 * 3   # 9.9V: land now
 FULL_CELL_V = 4.2          # a LiPo cell, fully charged
 DEFAULT_CELLS = 3          # the lab packs are 3S
 
+
 class BatteryLimits:
-	def __init__(self, low=DEFAULT_LOW_V, crit=DEFAULT_CRIT_V, cells=DEFAULT_CELLS, source='default'):
+    """Land-soon ('low') and land-now ('crit') pack voltages for one drone,
+    plus its cell count so voltages can be shown per cell -- 4.2 V full,
+    3.5 V low reads the same whatever the pack size."""
+
+    def __init__(self, low=DEFAULT_LOW_V, crit=DEFAULT_CRIT_V,
+                 cells=DEFAULT_CELLS, source='default'):
         self.low, self.crit, self.source = float(low), float(crit), source
         self.cells = max(1, int(cells))
 
     def per_cell(self, v):
-		return None if v is None else v / self.cells
+        """Pack voltage -> volts per cell (None stays None)."""
+        return None if v is None else v / self.cells
 
     @property
     def low_per_cell(self):
@@ -40,7 +46,8 @@ class BatteryLimits:
         return self.crit / self.cells
 
     def state(self, v):
-		if v is None:
+        """Classify a pack voltage: 'unknown' | 'bad' | 'warn' | 'ok'."""
+        if v is None:
             return 'unknown'
         if v < self.crit:
             return 'bad'
@@ -54,7 +61,8 @@ class BatteryLimits:
 
 
 def _bat_defines(airframe_url):
-	with urllib.request.urlopen(airframe_url) as f:
+    """{DEFINE_NAME: float} of the airframe's <section name="BAT">."""
+    with urllib.request.urlopen(airframe_url) as f:
         tree = ET.parse(f)
     out = {}
     for section in tree.iter('section'):
@@ -72,7 +80,11 @@ def _bat_defines(airframe_url):
 
 
 def from_airframe(conf):
-	ac_id = getattr(conf, 'id', '?')
+    """Battery limits of the aircraft described by `conf` (a PprzConfig),
+    read from its airframe file. Always returns usable limits: any problem
+    (no airframe, unreadable, no BAT section, inconsistent values) falls back
+    to the defaults with a warning."""
+    ac_id = getattr(conf, 'id', '?')
     url = getattr(conf, 'airframe', None)
     if not url:
         logger.warning(f'aircraft {ac_id}: no airframe in its config; '
@@ -96,8 +108,7 @@ def from_airframe(conf):
         logger.warning(f'aircraft {ac_id}: inconsistent BAT thresholds in the '
                        f'airframe (low={low}, critic={crit}); using defaults')
         return BatteryLimits()
-
-	maxv = defines.get('MAX_BAT_LEVEL')
+    maxv = defines.get('MAX_BAT_LEVEL')
     cells = round(maxv / FULL_CELL_V) if maxv else round(low / 3.5)
     cells = min(max(int(cells), 1), 12)
     limits = BatteryLimits(low, crit, cells, source='airframe')
