@@ -60,7 +60,7 @@ class TelemetryRecorder:
         self.ids = list(ids)
         self.data = {_id: {k: deque(maxlen=maxlen) for k in 
 					 ('t', 'alt', 'spd', 'yawrate', 'dist',
-                            'alt_ref', 'spd_ref', 'yawrate_ref')}
+                    	'alt_ref', 'spd_ref', 'yawrate_ref')}
                      for _id in self.ids}
         # global series: min pairwise inter-drone distance (the avoidance metric)
         self.gdata = {k: deque(maxlen=maxlen) for k in ('t', 'mindist')}
