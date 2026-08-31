@@ -48,7 +48,7 @@ déclarera son chemin à l'étape 4. L'emplacement est libre, `~/work/pat` est
 la convention du laboratoire :
 
 ```bash
-mkdir -p ~/work && git clone https://github.com/poine/pat.git ~/work/pat
+mkdir -p ~/Projects && git clone https://github.com/poine/pat.git ~/Projects/pat
 ```
 
 Attention au nom : le dépôt s'appelle `pat`, le module Python `pat3`. Et ce
@@ -70,7 +70,7 @@ dédié, `~/.config/clicknfly.env`, que le lanceur charge à chaque démarrage.
 ```bash
 mkdir -p ~/.config
 cat > ~/.config/clicknfly.env <<'EOF'
-export PYTHONPATH="$PYTHONPATH:$HOME/work/pat"
+export PYTHONPATH="$PYTHONPATH:$HOME/Projects/pat/src"
 export PYTHONPATH="$PYTHONPATH:/chemin/vers/paparazzi/sw/lib/python"
 export PAPARAZZI_HOME="/chemin/vers/paparazzi"
 EOF
