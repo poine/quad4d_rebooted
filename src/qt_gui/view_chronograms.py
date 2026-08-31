@@ -98,18 +98,13 @@ class OutputChronogram(FigureCanvas):
         super().__init__(Figure(figsize=(12, 10)))
         self.axes = self.figure.subplots(p_mt._nder, p_mt._ylen)
         self.figure.tight_layout()
-        #self.lines = np.empty_like(self.axes)
         self.lines = {}   # keyed by trajectory idx -> supports any drone count
         ylabel = ['$x^{{({})}}$', '$y^{{({})}}$', '$z^{{({})}}$', '$\\psi^{{({})}}$']
         for i in range(p_mt._nder):
             for ax, l in zip(self.axes[i], ylabel):
                 ax.set_title(l.format(i))
                 ax.grid(True)
-        #for d in range(p_mt._nder):
-            #for c in range(p_mt._ylen):
-                #self.lines[d, c] = self.axes[d,c].plot([],[])[0]
 
-    # no difference between new trajectory and update
     def display_new_trajectory(self, model, replace_idx=0):
         logger.debug(' #OutputChronogram::display_new_trajectory')
         if replace_idx not in self.lines:
@@ -126,9 +121,6 @@ class OutputChronogram(FigureCanvas):
         time, Y = model.sample_traj_output(idx)
         for d in range(p_mt._nder):
             for c in range(p_mt._ylen):
-                #self.lines[d, c].set_data(time, Y[:,c,d])
-                #self.axes[d,c].relim()
-                #mu.autoscale_axis(self.axes[d,c], time, Y[:,c,d])
                 self.lines[idx][d, c].set_data(time, Y[:,c,d])
                 self.axes[d,c].relim()
                 mu.ensure_min_ylim(self.axes[d,c], span=0.05)
@@ -140,21 +132,12 @@ class StateChronogram(FigureCanvas):
     def __init__(self):
         super().__init__(Figure(figsize=(12, 10), layout='tight'))
         self.axes = ax1, ax2, ax3 = self.figure.subplots(3,1, sharex=True)
-
-        #self.lines_pos = [ax1.plot([],[], label=l)[0] for l in ['x', 'y', 'z']]
-        #mu.decorate(ax1, title='Position', ylab='m', legend=True, grid=True)
-
-        #self.line_vel = ax2.plot([],[])[0]
         mu.decorate(ax1, title='Position (x solid, y dashed, z dotted)', ylab='m', grid=True)
         mu.decorate(ax2, title='Velocity', ylab='m/s', grid=True)
         mu.decorate(ax3, title='Attitude ($\\phi$ solid, $\\theta$ dashed)',
                     xlab='time in s', ylab='degres', grid=True)
         self.lines = {}   # keyed by trajectory idx -> supports any drone count
 
-        #self.lines_att = [ax3.plot([],[], label=l)[0] for l in ['$\\phi$', '$\\theta$']]
-        #mu.decorate(ax3, title='Attitude', xlab='time in s', ylab='degres', legend=True, grid=True)
-
-    # no difference between new trajectory and update
     def display_new_trajectory(self, model, replace_idx=0):
         logger.debug(' StateChronogram::display_new_trajectory')
         if replace_idx not in self.lines:
@@ -167,24 +150,14 @@ class StateChronogram(FigureCanvas):
             }
             ax2.legend()
         self.update_plot(model, replace_idx)
-        
-def update_plot(self, model, idx=0):
+
+    def update_plot(self, model, idx=0):
         if idx not in self.lines: return
         time, pos, vel, euler, rvel = model.sample_traj_state(idx)
-        #for i in range(3): self.lines_pos[i].set_data(time, pos[:,i])
-        #nvel = np.linalg.norm(vel, axis=1)
-        #self.line_vel.set_data( time, nvel)
         lines = self.lines[idx]
         for i in range(3): lines['pos'][i].set_data(time, pos[:,i])
         lines['vel'].set_data(time, np.linalg.norm(vel, axis=1))
         euler_deg = np.rad2deg(euler)
-        #for i in range(2): self.lines_att[i].set_data(time, euler_deg[:,i])
-        #for ax in self.axes: ax.relim()
-        #self.draw()
-        #mu.autoscale_axis(self.axes[0], time, pos)
-        #mu.autoscale_axis(self.axes[1], time, nvel)
-        #mu.autoscale_axis(self.axes[2], time, euler_deg)
-        #self.draw()  
         for i in range(2): lines['att'][i].set_data(time, euler_deg[:,i])
         for ax in self.axes:
             ax.relim()
@@ -196,7 +169,6 @@ class FullStateChronogram(FigureCanvas):
     def __init__(self):
         super().__init__(Figure(figsize=(12, 10), layout='tight'))
         self.axes = self.figure.subplots(4,3, sharex=True)
-        #self.lines = [[], []]
         self.lines = {}   # keyed by trajectory idx -> supports any drone count
         for ax, t in zip(self.axes[0], ['$x$', '$y$', '$z$']):
             mu.decorate(ax, title=t, ylab='m', legend=True, grid=True)
