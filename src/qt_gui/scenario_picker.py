@@ -140,7 +140,6 @@ class ScenarioPickerDialog(QDialog):
         self.button_start.setObjectName("primary")
         self.button_start.clicked.connect(self.accept)
         self.button_start.setDefault(True)   # Enter validates the selection
-        self.button_start.setDefault(True)   
         buttons.addWidget(self.button_quit)
         buttons.addWidget(self.button_start)
         outer.addLayout(buttons)
