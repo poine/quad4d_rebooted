@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-# deconfliction by LAMBDA SCHEDULING: instead of delaying whole trajectories at start,
-# the safety check pauses lower-priority drones ON their path just
-# before each conflict zone (spatial_deconfliction.py). 
+#
+# Click'n Fly: operator interface for multi-drone shows in the aviary.
+#
+# Conflicts during the show are resolved by LAMBDA SCHEDULING: instead of
+# delaying whole trajectories at start, the safety check pauses lower-priority
+# drones ON their path just before each conflict zone (spatial_deconfliction.py).
+# Geometry is never touched. Transits pick their own mode automatically
+# (sequencing, staggered departures or height layering), see start_transit.
+#
 
-import sys, time, signal, logging, yaml, argparse
+import sys, time, signal, logging, argparse
 import numpy as np
 from enum import Enum
 
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog
-from PySide6.QtCore import QRunnable, QThreadPool, QTimer, Slot, Qt
+from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QMessageBox
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QGuiApplication
 QGuiApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
 # https://www.pythonguis.com/tutorials/multithreading-pyside6-applications-qthreadpool/
 
-import traj_factory, misc_utils as mu
+import misc_utils as mu
 import view_three_d as vtd, model
 import scenarios as cnf_scen
 import pat3.algebra as p_al
@@ -25,23 +31,89 @@ from guided_mode import GuidedMode
 from operator_window import OperatorWindow
 from scenario_picker import ScenarioPickerDialog
 from drones_panel import battery_state
+import battery_limits
 import flight_blocks as fb
 import spatial_deconfliction as sd
 
 logger = logging.getLogger(__name__)
 
-DIST_TO_START_THRESHOLD = 0.3
+DIST_TO_START_THRESHOLD = 0.5
 
 STANDBY_POINTS = [
-    (-2.0, -2.0, 1.2),
-    ( 2.0, -2.0, 1.2),
-    ( 0.0,  2.5, 1.2),
+    (-1.5, -1.5, 1.2),
+    ( 1.5, -1.5, 1.2),
+    ( 0.0,  2.0, 1.2),
 ]
 STANDBY_AIRBORNE_ALT = 0.4 
 GUIDED_AP_MODE = 19 
+TRANSIT_ARRIVE = 0.4     #m, target arival threshold
+
+TRANSIT_LAYER_BASE = 1.2   # m, lowest transit layer
+TRANSIT_LAYER_DZ   = 1.6   # m, vertical spacing between layers (> ~1.3 m margin)
+TRANSIT_SEQ_MARGIN = 1.3   # m, min clearance to auto-pick the prettier 'sequence'
+
+def _point_seg_dist(p, a, b):
+    """Shortest distance from point p to the segment [a, b] (3D)."""
+    p, a, b = (np.asarray(v, dtype=float) for v in (p, a, b))
+    ab = b - a
+    L2 = float(ab @ ab)
+    if L2 < 1e-9:
+        return float(np.linalg.norm(p - a))
+    u = float(np.clip((p - a) @ ab / L2, 0.0, 1.0))
+    return float(np.linalg.norm(p - (a + u * ab)))
+
+# Speed cap: a trajectory whose peak speed exceeds TARGET_MAX_SPEED is slowed
+# (SlowedTraj) just enough to bring its peak down to it, so fast trajectories
+# track well on the real hardware WITHOUT making the already-slow ones drag.
+# Adaptive per trajectory -- one knob. Airframe REF_MAX_SPEED is 2.5 m/s.
+TARGET_MAX_SPEED = 1.5   # m/s
+
+# Live show-speed factor (HMI slider): the show clock advances at this factor
+# and the feedforward is rescaled accordingly, uniformly for every drone (keeps
+# sync and deconfliction). The factor is eased toward the slider value over
+# ~SPEED_SMOOTH_TAU so a slider move never jerks the drones.
+SPEED_SMOOTH_TAU = 1.0   # s
+
 SCHED_SAFETY_DIST   = 1.0   # m, pairwise distance defining a conflict
 SCHED_STANDOFF      = 0.15  # m, extra buffer over safety for the parked drone: it waits as close to the conflict as safety+standoff allows (staged at the gate, not back at its corner)
 SCHED_RESUME_MARGIN = 0.5   # s, extra wait after the other drone has cleared
+
+
+class SlowedTraj:
+    """Wrap a trajectory to traverse it k times slower: same geometry, but
+    duration * k, and the n-th time-derivative divided by k**n (so velocity
+    /k, accel /k^2 ...). Keeps the flat-output feedforward consistent, which
+    is what lets the drone track it. Other attributes fall through."""
+    def __init__(self, traj, factor):
+        self.traj = traj
+        self.k = float(factor)
+        self.duration = traj.duration * self.k
+        self.name = getattr(traj, 'name', 'slowed')
+        self.desc = (getattr(traj, 'desc', '') + f' [x{self.k:g} slower]').strip()
+ 
+    def get(self, t):
+        Y = np.array(self.traj.get(t / self.k), dtype=float, copy=True)
+        for d in range(1, Y.shape[1]):     # scale each time-derivative
+            Y[:, d] /= self.k ** d
+        return Y
+ 
+    def __getattr__(self, name):
+        return getattr(self.traj, name)
+ 
+ 
+def apply_slowdown(model, target_v=TARGET_MAX_SPEED, npts=200):
+    """Cap each trajectory's PEAK speed at target_v: one faster than that is
+    slowed just enough (SlowedTraj) to bring its peak down to target_v;
+    slower ones are left untouched. Adaptive, so fast trajectories track well
+    without the already-slow ones dragging."""
+    for i in range(model.trajectory_nb()):
+        traj = model.get_trajectory(i)
+        vmax = max(float(np.linalg.norm(traj.get(t)[:3, 1]))
+                   for t in np.linspace(0., traj.duration, npts))
+        if vmax > target_v + 1e-6:
+            model.set_trajectory(SlowedTraj(traj, vmax / target_v), i)
+
+
 
 class MainWindow(QMainWindow):
     def __init__(self, model, ids, controller):
@@ -85,6 +157,7 @@ class Drone:
         # maybe? https://github.com/eric-wieser/numpy_ringbuffer/blob/master/numpy_ringbuffer/__init__.py
         self.status = DroneStatus.UNKNOWN
         self.battery_v = None
+        self.batt_limits = None    #set on connect, from the airframe
         self.link_down = False   # True once an Ivy send has failed (bus gone)
         self.standby_point = None   # fixed ENU staging point (None -> traj start)
         # pre-flight checklist inputs (see drones_panel)
@@ -105,6 +178,8 @@ class Drone:
         self.guided = GuidedMode(ivy)
         self.ivy = ivy
         self.blocks = fb.FlightPlanBlocks(conf)
+        # this drone's own battery thresholds, from its airframe (BAT section)
+        self.batt_limits = battery_limits.from_airframe(conf)
         self.status = DroneStatus.CONNECTED
       
     def _send(self, action):
@@ -118,6 +193,13 @@ class Drone:
                 _id = getattr(self.conf, 'id', '?')
                 logger.warning(f'aircraft {_id}: Ivy link down, command dropped ({e})')
             self.link_down = True
+            return False
+        except (AttributeError, KeyError) as e:
+            # a setting name missing from THIS aircraft's settings (e.g.
+            # 'auto2' absent on some airframes): don't let it crash the
+            # periodic loop / handlers, degrade gracefully like a link drop
+            _id = getattr(self.conf, 'id', '?')
+            logger.warning(f'aircraft {_id}: command dropped, setting unavailable ({e})')
             return False
         self.link_down = False
         return True
@@ -219,7 +301,7 @@ class Drone:
             return False
         return self._set_kill(True)
 
-FDStatus = Enum('FDStatus', [('STAGING', 1), ('GETTING_READY', 2), ('GUIDING', 3), ('FINISHED', 4)])      
+FDStatus = Enum('FDStatus', [('STAGING', 1), ('GETTING_READY', 2), ('GUIDING', 3), ('FINISHED', 4), ('RETURNING', 5)])
 class FlightDirector:
     def __init__(self, trajectories, ids):
         self.trajectories = trajectories
@@ -241,6 +323,9 @@ class FlightDirector:
         self.known_confs = {}  # every conf ever seen, even for ids not currently in acs
         self.t0 = 0.
         self.duree_du_show = self.trajectories.trajectory_duration()  #POur avoir la durée du show
+        self.show_t = 0.          # accumulated show-time (advances during GUIDING)
+        self.speed_target = 1.0   # global speed factor requested from the HMI
+        self.speed_s = 1.0        # eased factor actually applied (avoids jerk)
         
     def on_pprz_external_pose(self, sender, msg):
         #print(sender, msg)
@@ -266,13 +351,19 @@ class FlightDirector:
         ac.set_pose(T)
       
         
-    def run(self): # for now called from GUI thread, maybe use our own thread?
+    def run(self, dt=0.05): # for now called from GUI thread, maybe use our own thread?
         if self.status == FDStatus.STAGING or self.status == FDStatus.GETTING_READY:
             elapsed = 0.
+        elif self.status == FDStatus.GUIDING:
+            # advance the show clock at the (eased) global speed factor: a live
+            # speed change never jumps the reference position, only the rate
+            # going forward. Uniform for every drone -> sync & deconfliction
+            # preserved. Feedforward is rescaled below to match the new rate.
+            self.speed_s += (self.speed_target - self.speed_s) * min(dt / SPEED_SMOOTH_TAU, 1.0)
+            self.show_t += self.speed_s * dt
+            elapsed = self.show_t % self.duree_du_show
         else:
             elapsed = time.time() - self.t0
-        if self.status == FDStatus.GUIDING:
-            elapsed = elapsed % self.duree_du_show
 
         for idx_traj, id_ac in enumerate(self.ids): # compute reference pose
             traj = self.trajectories.get_trajectory(idx_traj)
@@ -280,26 +371,188 @@ class FlightDirector:
             # longest one, and shorter trajectories used to teleport mid-lap at the global wrap
             t_traj = elapsed % traj.duration if traj.duration > 0 else elapsed
             Yref = traj.get(t_traj)
+            if self.status == FDStatus.GUIDING and self.speed_s != 1.0:
+                # d-th time-derivative scales as speed_s**d (vel x s, accel x s^2...)
+                Yref = np.array(Yref, dtype=float, copy=True)
+                for d in range(1, Yref.shape[1]):
+                    Yref[:, d] *= self.speed_s ** d
             Tref = np.eye(4); Tref[:3,3] = Yref[:3,0]
             self.acs[id_ac].set_ref(Tref, Yref)
         drone_status = [self.acs[_id].status for _id in self.ids]
         if self.status == FDStatus.STAGING:
             if np.all([s == DroneStatus.CONNECTED for s in drone_status]):
                 self.status = FDStatus.GETTING_READY
-                for i in self.ids:
-                  self.acs[i].goto_ref()  
-                logger.debug('all drones connected, moving them to start pos')
+                # deconflicted transit (staggered departures) to the starts
+                self.start_transit({i: tuple(float(v) for v in self.acs[i].Yref[:3, 0])
+                                    for i in self.ids})
+                logger.info('all connected -> deconflicted transit to start')
         elif self.status == FDStatus.GETTING_READY:
-            dist_to_start = [self.acs[i].dist_to_ref() for i in self.ids]
-            if np.max(dist_to_start) < DIST_TO_START_THRESHOLD:
+            if self.transit_step():
                 self.duree_du_show = self.trajectories.trajectory_duration()
                 self.status, self.t0 = FDStatus.GUIDING, time.time()
-                logger.debug('all drones arrived to start, starting the show')
+                self.show_t, self.speed_s = 0., self.speed_target  # start fresh
+                logger.info('all drones arrived to start, starting the show')
+                
         elif self.status == FDStatus.GUIDING:
             for i in self.ids:
                 self.acs[i].follow_ref()
+        elif self.status == FDStatus.RETURNING:
+            if self.transit_step():
+                self.status = FDStatus.FINISHED
+                logger.info('all drones back at standby')
         elif self.status == FDStatus.FINISHED:
             pass
+
+
+    def _seq_is_safe(self, start, targets, margin=TRANSIT_SEQ_MARGIN):
+        """True if the one-by-one 'sequence' transit is collision-free: for each
+        drone's straight move, no other (parked) drone is within `margin` of its
+        path. Drones that already moved are parked at their target, the others at
+        their start."""
+        order = list(self.ids)
+        for k, i in enumerate(order):
+            a, b = start[i], targets[i]
+            for kk, j in enumerate(order):
+                if j == i:
+                    continue
+                parked = targets[j] if kk < k else start[j]
+                if _point_seg_dist(parked, a, b) < margin:
+                    return False
+        return True
+ 
+    def _schedule_delays(self, start, targets, margin=TRANSIT_SEQ_MARGIN * 1.15,
+                         speed=1.0, dt=0.05, max_delay=12.0):
+        """Lambda-scheduling by staggered departure (priority = drone order):
+        each drone waits at its start until it can fly STRAIGHT to its target
+        without coming within `margin` of a higher-priority drone's (already
+        scheduled) transit. Returns ({ac_id: delay_s}, all_cleared).
+ 
+        The check uses a 15% buffer over the safety margin, and a fine time step:
+        planning exactly at the margin leaves no room for the real tracking error,
+        and a coarse step can step over a brief close approach."""
+        P = {i: np.asarray(start[i], dtype=float) for i in self.ids}
+        Tg = {i: np.asarray(targets[i], dtype=float) for i in self.ids}
+        dur = {i: max(float(np.linalg.norm(Tg[i] - P[i])) / speed, 1e-3) for i in self.ids}
+ 
+        def pos(i, t, d):                       # drone i at time t, departing at delay d
+            if t <= d:
+                return P[i]
+            return P[i] + (Tg[i] - P[i]) * min((t - d) / dur[i], 1.0)
+ 
+        ids = list(self.ids)
+        delays, cleared = {}, True
+        for k, i in enumerate(ids):
+            chosen = None
+            for d in np.arange(0.0, max_delay + dt, dt):
+                horizon = max([d + dur[i]] + [delays[j] + dur[j] for j in ids[:k]])
+                clash = any(np.linalg.norm(pos(i, t, d) - pos(j, t, delays[j])) < margin
+                            for t in np.arange(0.0, horizon + dt, dt) for j in ids[:k])
+                if not clash:
+                    chosen = float(d)
+                    break
+            if chosen is None:                  # could not clear within max_delay
+                chosen, cleared = float(max_delay), False
+            delays[i] = chosen
+        return delays, cleared
+ 
+    def start_transit(self, targets):
+        """Begin the transit to `targets` {ac_id:(x,y,z)}, auto-picking the
+        simplest safe mode: 'sequence', else 'lambda', else 'layered'."""
+        targets = {i: tuple(float(v) for v in targets[i]) for i in self.ids}
+        start = {i: tuple(float(v) for v in self.acs[i].T[:3, 3]) for i in self.ids}
+        self._transit = {'targets': targets, 'start': start}
+        if self._seq_is_safe(start, targets):
+            self._transit['mode'] = 'sequence'
+            self._transit['order'] = list(self.ids)   # priority = drone order
+            self._transit['active'] = 0
+            logger.debug("transit (sequence): " + " -> ".join(str(i) for i in self.ids))
+        else:
+            delays, cleared = self._schedule_delays(start, targets)
+            if cleared:
+                self._transit['mode'] = 'lambda'
+                self._transit['delays'] = delays
+                self._transit['start_t'] = time.time()
+                logger.debug("transit (lambda): " + ", ".join(
+                    f"{i}:{delays[i]:.1f}s" for i in self.ids))
+            else:
+                order = sorted(self.ids, key=lambda i: (round(targets[i][2], 3), start[i][2]))
+                self._transit['mode'] = 'layered'
+                self._transit['layers'] = {i: TRANSIT_LAYER_BASE + k * TRANSIT_LAYER_DZ
+                                           for k, i in enumerate(order)}
+                self._transit['phase'] = 'rise'
+                logger.debug("transit (height-layered): " + ", ".join(
+                    f"{i}@{self._transit['layers'][i]:.1f}m" for i in self.ids))
+        for i in self.ids:
+            self.acs[i].take_control()   # ensure Guided once
+        self._transit_send()
+ 
+    def _transit_waypoint(self, i):
+        """Point drone i is currently commanded to, given the mode/phase."""
+        t = self._transit
+        if t['mode'] == 'sequence':
+            # moved & currently-moving drones head to their target; the ones not
+            # yet up stay parked at their start
+            idx = t['order'].index(i)
+            return t['targets'][i] if idx <= t['active'] else t['start'][i]
+        if t['mode'] == 'lambda':
+            # hold at start until my scheduled departure, then straight to target
+            if (time.time() - t['start_t']) < t['delays'][i]:
+                return t['start'][i]
+            return t['targets'][i]
+        # 'layered'
+        sx, sy, _ = t['start'][i]
+        tx, ty, tz = t['targets'][i]
+        lz = t['layers'][i]
+        phase = t['phase']
+        if phase == 'rise':      return (sx, sy, lz)   # climb to layer, xy fixed
+        if phase == 'translate': return (tx, ty, lz)   # move above target at layer
+        return (tx, ty, tz)                            # descend to target
+ 
+    def _transit_send(self):
+        for i in self.ids:
+            self.acs[i].goto_point(self._transit_waypoint(i))
+ 
+    def _transit_reached(self, i):
+        return (np.linalg.norm(np.asarray(self.acs[i].T[:3, 3], dtype=float)
+                - np.asarray(self._transit_waypoint(i), dtype=float)) < TRANSIT_ARRIVE)
+ 
+    _TRANSIT_PHASES = ('rise', 'translate', 'descend', 'done')
+ 
+    def transit_step(self):
+        """Drive the active transit; True once every drone reached its target."""
+        t = getattr(self, '_transit', None)
+        if t is None:
+            return True
+        self._transit_send()
+        if t['mode'] == 'sequence':
+            # let the next drone depart once the active one has arrived
+            if self._transit_reached(t['order'][t['active']]):
+                t['active'] += 1
+                if t['active'] >= len(t['order']):
+                    self._transit = None
+                    return True
+                logger.debug(f"transit: drone {t['order'][t['active']]} departs")
+            return False
+        if t['mode'] == 'lambda':
+            # done once every drone sits on its target (delays handled in the
+            # waypoint), i.e. the last staggered departure has arrived
+            if all(np.linalg.norm(np.asarray(self.acs[i].T[:3, 3], dtype=float)
+                   - np.asarray(t['targets'][i], dtype=float)) < TRANSIT_ARRIVE
+                   for i in self.ids):
+                self._transit = None
+                return True
+            return False
+        # 'layered': advance phase only when ALL drones reached the waypoint
+        if all(self._transit_reached(i) for i in self.ids):
+            nxt = self._TRANSIT_PHASES[self._TRANSIT_PHASES.index(t['phase']) + 1]
+            if nxt == 'done':
+                self._transit = None
+                return True
+            t['phase'] = nxt
+            logger.debug(f"transit: phase -> {t['phase']}")
+        return False
+ 
+    
 
     def on_pprz_connect(self, conf):
         logger.debug(f'{conf.id} ({conf.name}) connected')
@@ -331,7 +584,7 @@ class FlightDirector:
         if ac.t_last_status is None:
             # first status of the run, raw: the reference to compare with
             # the GCS when the panel and the strip disagree
-            logger.info(f'first ROTORCRAFT_STATUS from {sender}: {msg}')
+            logger.debug(f'first ROTORCRAFT_STATUS from {sender}: {msg}')
         ac.t_last_status = time.time()
         ac.battery_v = float(msg['vsupply'])
         try:
@@ -383,6 +636,7 @@ class Application(QApplication):
         self.model = model.Model()
         for traj_name in trajs:
             self.model.load_from_factory(traj_name)
+        apply_slowdown(self.model)       #cap peak speed of fast trajs
 
         self.fd = FlightDirector(self.model, ids)
         self._assign_standby_points()
@@ -420,6 +674,16 @@ class Application(QApplication):
         logger.debug('app on quit')
         self.fd.quit()
         self.quit()
+
+    def _flight_plan_step(self, label, action):
+        """Send a flight plan jump to every drone of the scenario."""
+        failed = [str(_id) for _id in self.fd.ids
+                  if not action(self.fd.acs[_id])]
+        if failed:
+            self.operator_view.log_text(
+                f'{label}: FAILED for drone(s) {", ".join(failed)} (see terminal log)')
+        else:
+            self.operator_view.log_text(f'{label} sent to {len(self.fd.ids)} drone(s)')
 
     def on_prepare_clicked(self):
         """Single staging button (operator request): start motors, then
@@ -491,16 +755,40 @@ class Application(QApplication):
             self.operator_view.log_text(f'KILL {ac_id}: FAILED (see terminal log)')
 
     def on_guide_clicked(self):
-        low = [(str(_id), self.fd.acs[_id].battery_v)
-               for _id in self.fd.ids
-               if battery_state(getattr(self.fd.acs[_id], 'battery_v', None))
-               in ('warn', 'bad')]
-        if low:
-            detail = ', '.join(f'{_id} ({v:.1f}V)' for _id, v in low)
+        
+        def _packs(state):
+            # voltages reported per cell, like the drones panel
+            out = []
+            for _id in self.fd.ids:
+                ac = self.fd.acs[_id]
+                v, lim = getattr(ac, 'battery_v', None), getattr(ac, 'batt_limits', None)
+                if battery_state(v, lim) == state:
+                    out.append((str(_id), lim.per_cell(v) if lim else v))
+            return out
+        crit, low = _packs('bad'), _packs('warn')
+        if crit:
+            detail = ', '.join(f'{_id} ({v:.2f}V/cell)' for _id, v in crit)
             self.operator_view.log_text(
-                f'START BLOCKED: battery too low on drone(s) {detail} '
+                f'START BLOCKED: battery CRITICAL on drone(s) {detail} '
                 f'- swap the pack(s) before launching')
             return
+        if low:
+            detail = ', '.join(f'{_id} ({v:.2f}V/cell)' for _id, v in low)
+            answer = QMessageBox.question(
+                self.operator_view, 'Batterie basse',
+                f'Batterie basse sur le(s) drone(s) {detail}.\n\n'
+                'Le vol reste possible, mais gardez-le court : le pack peut '
+                'atteindre le seuil critique en vol (atterrissage automatique).\n\n'
+                'Lancer le show quand même ?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)      # default = do not launch
+            if answer != QMessageBox.StandardButton.Yes:
+                self.operator_view.log_text(
+                    f'Launch cancelled (low battery on drone(s) {detail})')
+                return
+            self.operator_view.log_text(
+                f'Launching on LOW battery ({detail}) - operator confirmed, keep it short')
+
         self._standby_state = None  # launching now supersedes standby staging
         self._prepare_state = None
         self.operator_view.log_text('Take off and trajectory following started')
@@ -523,11 +811,13 @@ class Application(QApplication):
         # repeatable formation the show can be relaunched from, or LAND
         # ALL used for a normal landing. NAV is only given back by LAND
         # ALL (so the flight plan lands) or at app exit.
-        self.operator_view.log_text('Show stopped: returning to standby (Guided)')
+        self.operator_view.log_text('Show stopped: returning to standby (deconflicted)')
         self.is_guiding = False
-        self.fd.status = FDStatus.FINISHED
-        for ac_id in self.fd.ids:
-            self.fd.acs[ac_id].go_standby()
+        targets = {ac_id: (self.fd.acs[ac_id].standby_point
+                           or tuple(float(v) for v in self.fd.acs[ac_id].Yref[:3, 0]))
+                   for ac_id in self.fd.ids}
+        self.fd.start_transit(targets)
+        self.fd.status = FDStatus.RETURNING
         self.operator_view.button_guide.setEnabled(True)
         self.operator_view.button_stop.setEnabled(False)
         self.operator_view.set_preflight_enabled(True)
@@ -567,6 +857,7 @@ class Application(QApplication):
         new_model = model.Model()
         for traj_name in trajs:
             new_model.load_from_factory(traj_name)
+        apply_slowdown(new_model)           # cap peak speed of fast trajs
 
         # Reuse Drone objects from the persistent pool (never dropped, so their
         # Ivy connection stays alive). A drone new to this run but already seen
@@ -610,8 +901,8 @@ class Application(QApplication):
         now = time.time()
         elapsed = now - self.t0
         if elapsed >= self.dt_control:
-            if self.is_guiding:
-                self.fd.run()
+            if self.is_guiding or self.fd.status == FDStatus.RETURNING:
+                self.fd.run(self.dt_control)
             # the drones panel doubles as the pre-flight checklist, so it
             # must live before takeoff, not only while guiding
             self.operator_view.drones_panel.update_from_fd(self.fd)
@@ -628,7 +919,7 @@ class Application(QApplication):
         #      arm Guided (the auto2='Guided' mode switch).
         #   guided: wait until the autopilot has really switched to
         #      GUIDED before sending the goto. A goto sent while still in NAV
-        #      is silently ignored by the autopilot -- 
+        #      is silently ignored by the autopilot 
         state = getattr(self, '_standby_state', None)
         if state == 'airborne':
             airborne = [self._drone_airborne(self.fd.acs[i]) for i in self.fd.ids]
@@ -672,7 +963,8 @@ class Application(QApplication):
         # clear (packs swapped / drones on the ground).
         crit = [str(_id) for _id in self.fd.ids
                 if self._drone_airborne(self.fd.acs[_id])
-                and battery_state(getattr(self.fd.acs[_id], 'battery_v', None)) == 'bad']
+                and battery_state(getattr(self.fd.acs[_id], 'battery_v', None),
+                                   getattr(self.fd.acs[_id], 'batt_limits', None)) == 'bad']
         if crit and not getattr(self, '_batt_landing', False):
             self._batt_landing = True
             self.operator_view.log_text(
@@ -682,7 +974,7 @@ class Application(QApplication):
             self._batt_landing = False
 
         if self.is_guiding and self.fd.status == FDStatus.GUIDING:
-            loop_elapsed = (time.time() - self.fd.t0) % self.fd.duree_du_show
+            loop_elapsed = self.fd.show_t % self.fd.duree_du_show
             progress_percent= int((loop_elapsed / self.fd.duree_du_show) * 100)
             self.operator_view.show_progress(progress_percent)
 
@@ -702,40 +994,20 @@ class Application(QApplication):
             self.operator_view.tdw.update_vehicle_traj(np.array(ac.vehicle_traj), i)
 
 
-scen1 = '''
-ids: [4]
-trajs: ["circle_with_intro1"]
-'''
-scen2 = '''
-ids: [4,5]
-trajs: ["circle_with_intro1", "circle_with_intro2"]
-'''
-scen3 = '''
-ids: [4, 5, 6]
-trajs: ["circle_with_intro1", "circle_with_intro2", "circle_with_intro3"]
-'''
-scen4 = '''
-ids: [4, 5, 6, 7]
-trajs: ["circle_with_intro1", "circle_with_intro2", "circle_with_intro3", "circle_with_intro4"]
-'''
-scen5 = '''
-ids: [4,5]
-trajs: ["smooth_back_and_forth1", "smooth_back_and_forth2"]
-'''
-
-scens = [scen1, scen2, scen3, scen4, scen5]
 
 def parse_cli():
     parser = argparse.ArgumentParser(description='ClicknFly, flight director.')
     parser.add_argument('--scen', help='the name of the scenario', default=0)
     parser.add_argument('--qt-name', help="Set the window name.", default='blaaaa', metavar="inkcut")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='debug logging (transit plans, staging details...)')
     args = parser.parse_args()
     return args
 
             
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.DEBUG) if args.verbose else logging.INFO
     args = parse_cli()
     cnf = Application(args)
     def _quit(sig, frame):
