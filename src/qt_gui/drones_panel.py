@@ -233,7 +233,7 @@ class _DroneRow(QFrame):
        def cell(label, value, unit, fmt, color=_VALUE, bold=False):
             v = (fmt % value + unit) if value is not None else "\u2014"
             weight = "font-weight:700;" if bold else ""
-        return f'{label} <span style="color:{color};{weight}">{v}</span>'
+          return f'{label} <span style="color:{color};{weight}">{v}</span>'
         batt_color, batt_bold = _VALUE, False
         bstate = battery_state(batt, limits)
         if bstate == "bad":
