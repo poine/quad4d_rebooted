@@ -40,9 +40,9 @@ logger = logging.getLogger(__name__)
 DIST_TO_START_THRESHOLD = 0.5
 
 STANDBY_POINTS = [
-    (-1.5, -1.5, 1.2),
-    ( 1.5, -1.5, 1.2),
-    ( 0.0,  2.0, 1.2),
+    (-1.0, -1.0, 1.2),
+    ( 1.0, -1.0, 1.2),
+    ( 0.0,  1.5, 1.2),
 ]
 STANDBY_AIRBORNE_ALT = 0.4 
 GUIDED_AP_MODE = 19 
