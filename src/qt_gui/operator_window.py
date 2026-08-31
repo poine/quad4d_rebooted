@@ -585,7 +585,7 @@ class OperatorWindow(QMainWindow):
                 logger.info('deconfliction: ' + line)
                 if any(w in line for w in ('could not', 'giving up', 'persist')):
                     self.log_text('  ' + line)
-          conflicts = self.model.detect_conflicts(safety_distance=1.0)
+            conflicts = self.model.detect_conflicts(safety_distance=1.0)
             if ok and not conflicts:
                 self._set_safety_state("Deconflicted (on-path scheduling)", "ok")
                 n_holds = sum(1 for l in report if ' waits ' in l)
