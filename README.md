@@ -18,14 +18,44 @@ de la volière, pas du GPS.
 
 ## Prérequis
 
-- Python 3.10 ou plus
-- Paparazzi installé, avec ses bibliothèques Python (`sw/lib/python`)
-- La bibliothèque `pat` (module `pat3`)
-- Une volière équipée OptiTrack, qui diffuse des messages `EXTERNAL_POSE`
+Trois choses, à installer séparément — ce dépôt ne contient que l'application :
+
+| | où le prendre |
+|---|---|
+| Python 3.10 ou plus | le gestionnaire de paquets du système |
+| `pat`, le module `pat3` | <https://github.com/poine/pat> |
+| Paparazzi, avec `sw/lib/python` | <https://github.com/paparazzi/paparazzi> |
+
+Il faut également une volière équipée OptiTrack, diffusant des messages
+`EXTERNAL_POSE`.
 
 ## Installation
 
-**1. L'environnement Python.** Le lanceur cherche `~/venv_quad4d` par défaut :
+**1. Python.** Vérifiez d'abord ce que vous avez :
+
+```bash
+python3 --version
+```
+
+S'il manque, ou s'il est antérieur à 3.10, sur Debian ou Ubuntu :
+
+```bash
+sudo apt install python3 python3-venv python3-pip
+```
+
+**2. La bibliothèque pat.** Elle n'est pas sur PyPI : on la clone, et on
+déclarera son chemin à l'étape 4. L'emplacement est libre, `~/work/pat` est
+la convention du laboratoire :
+
+```bash
+mkdir -p ~/work && git clone https://github.com/poine/pat.git ~/work/pat
+```
+
+Attention au nom : le dépôt s'appelle `pat`, le module Python `pat3`. Et ce
+n'est pas le même dépôt que celui de cette application, bien que tous deux
+soient de Antoine Drouin.
+
+**3. L'environnement Python.** Le lanceur cherche `~/venv_quad4d` par défaut :
 
 ```bash
 python3 -m venv ~/venv_quad4d
@@ -33,23 +63,31 @@ source ~/venv_quad4d/bin/activate
 pip install pyyaml numpy scipy matplotlib pyside6 numpy_stl pyqtgraph pyopengl ivy-python lxml
 ```
 
-**2. Les chemins vers Paparazzi et pat.** Un lancement par icône ne lit pas
+**4. Les chemins vers pat et Paparazzi.** Un lancement par icône ne lit pas
 votre `~/.bashrc` : le `PYTHONPATH` doit donc être déclaré dans un fichier
 dédié, `~/.config/clicknfly.env`, que le lanceur charge à chaque démarrage.
 
 ```bash
 mkdir -p ~/.config
 cat > ~/.config/clicknfly.env <<'EOF'
-export PYTHONPATH="$PYTHONPATH:/chemin/vers/pat"
+export PYTHONPATH="$PYTHONPATH:$HOME/work/pat"
 export PYTHONPATH="$PYTHONPATH:/chemin/vers/paparazzi/sw/lib/python"
 export PAPARAZZI_HOME="/chemin/vers/paparazzi"
 EOF
 ```
 
-Adaptez les trois chemins. C'est l'erreur la plus fréquente au premier
-lancement : sans eux, l'application s'arrête sur un `ModuleNotFoundError: pat3`.
+La première ligne suppose le clone de l'étape 2 ; adaptez-la si vous l'avez mis
+ailleurs, et remplacez le chemin de Paparazzi par le vôtre. C'est l'erreur la
+plus fréquente au premier lancement : sans ces chemins, l'application s'arrête
+sur un `ModuleNotFoundError: pat3`.
 
-**3. L'icône de bureau.** Une seule commande, à lancer depuis la racine du
+Pour vérifier, sans quitter le venv :
+
+```bash
+source ~/.config/clicknfly.env && python3 -c "import pat3; print(pat3.__file__)"
+```
+
+**5. L'icône de bureau.** Une seule commande, à lancer depuis la racine du
 dépôt :
 
 ```bash
