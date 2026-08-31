@@ -6,8 +6,6 @@ It is intended as a tool for drone demonstrations in ENAC's indoor flight arena 
 It is for now writen in Python, with the Graphical User Interface leveraging PyQT.
 
 
-# Quad4D — Click'n Fly
-
 Application de conduite de shows de drones en volière. Elle génère des
 trajectoires chorégraphiées pour plusieurs quadrirotors, les déconflicte avant
 le vol, et les fait voler depuis une interface unique : préparer, lancer,
