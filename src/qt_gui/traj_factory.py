@@ -541,7 +541,7 @@ class ShowStar(Traj45):
 # closed form, so the flat output (pos..snap) is exact -> clean diff-flatness
 # and good tracking. _harm returns [f, f', f'', f''', f''''] for one axis.
 def _harm(dt, terms):
-        out = np.zeros(5)
+    out = np.zeros(5)
     for amp, om, ph, kind in terms:
         th = om * dt + ph
         if kind == 'c':          # d^n/dt^n [cos] cycles cos,-sin,-cos,sin,...
