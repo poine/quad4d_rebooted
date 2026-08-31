@@ -30,7 +30,7 @@ class BatteryLimits:
         self.cells = max(1, int(cells))
 
     def per_cell(self, v):
-				return None if v is None else v / self.cells
+		return None if v is None else v / self.cells
 
     @property
     def low_per_cell(self):
@@ -41,7 +41,7 @@ class BatteryLimits:
         return self.crit / self.cells
 
     def state(self, v):
-			  if v is None:
+		if v is None:
             return 'unknown'
         if v < self.crit:
             return 'bad'
@@ -55,7 +55,7 @@ class BatteryLimits:
 
 
 def _bat_defines(airframe_url):
-	  with urllib.request.urlopen(airframe_url) as f:
+	with urllib.request.urlopen(airframe_url) as f:
         tree = ET.parse(f)
     out = {}
     for section in tree.iter('section'):
@@ -73,7 +73,7 @@ def _bat_defines(airframe_url):
 
 
 def from_airframe(conf):
-		ac_id = getattr(conf, 'id', '?')
+	ac_id = getattr(conf, 'id', '?')
     url = getattr(conf, 'airframe', None)
     if not url:
         logger.warning(f'aircraft {ac_id}: no airframe in its config; '
@@ -98,7 +98,7 @@ def from_airframe(conf):
                        f'airframe (low={low}, critic={crit}); using defaults')
         return BatteryLimits()
 
-			    maxv = defines.get('MAX_BAT_LEVEL')
+	maxv = defines.get('MAX_BAT_LEVEL')
     cells = round(maxv / FULL_CELL_V) if maxv else round(low / 3.5)
     cells = min(max(int(cells), 1), 12)
     limits = BatteryLimits(low, crit, cells, source='airframe')
