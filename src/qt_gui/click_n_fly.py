@@ -52,6 +52,12 @@ TRANSIT_LAYER_BASE = 1.2   # m, lowest transit layer
 TRANSIT_LAYER_DZ   = 1.6   # m, vertical spacing between layers (> ~1.3 m margin)
 TRANSIT_SEQ_MARGIN = 1.3   # m, min clearance to auto-pick the prettier 'sequence'
 
+
+# A drone that cannot settle within TRANSIT_ARRIVE holds the whole show back
+# with nothing on screen to say so. After this long, report how short each one
+# is and offer the operator to start anyway (see Application.periodic).
+TRANSIT_WAIT_WARN = 15.    # s, before offering to start the show as it stands
+
 def _point_seg_dist(p, a, b):
     """Shortest distance from point p to the segment [a, b] (3D)."""
     p, a, b = (np.asarray(v, dtype=float) for v in (p, a, b))
@@ -326,6 +332,7 @@ class FlightDirector:
         self.show_t = 0.          # accumulated show-time (advances during GUIDING)
         self.speed_target = 1.0   # global speed factor requested from the HMI
         self.speed_s = 1.0        # eased factor actually applied (avoids jerk)
+        self.t_ready0 = None      # when the transit to the starts began
         
     def on_pprz_external_pose(self, sender, msg):
         #print(sender, msg)
@@ -382,15 +389,17 @@ class FlightDirector:
         if self.status == FDStatus.STAGING:
             if np.all([s == DroneStatus.CONNECTED for s in drone_status]):
                 self.status = FDStatus.GETTING_READY
+                self.t_ready0 = time.time()
                 # deconflicted transit (staggered departures) to the starts
                 self.start_transit({i: tuple(float(v) for v in self.acs[i].Yref[:3, 0])
                                     for i in self.ids})
                 logger.info('all connected -> deconflicted transit to start')
         elif self.status == FDStatus.GETTING_READY:
             if self.transit_step():
-                self.duree_du_show = self.trajectories.trajectory_duration()
-                self.status, self.t0 = FDStatus.GUIDING, time.time()
-                self.show_t, self.speed_s = 0., self.speed_target  # start fresh
+                self.begin_show()
+                #self.duree_du_show = self.trajectories.trajectory_duration()
+                #self.status, self.t0 = FDStatus.GUIDING, time.time()
+                #self.show_t, self.speed_s = 0., self.speed_target  # start fresh
                 logger.info('all drones arrived to start, starting the show')
                 
         elif self.status == FDStatus.GUIDING:
@@ -507,7 +516,36 @@ class FlightDirector:
         if phase == 'rise':      return (sx, sy, lz)   # climb to layer, xy fixed
         if phase == 'translate': return (tx, ty, lz)   # move above target at layer
         return (tx, ty, tz)                            # descend to target
+
+    def begin_show(self):
+        """Leave the transit and start guiding, from wherever the drones are."""
+        self._transit = None
+        self.t_ready0 = None
+        self.duree_du_show = self.trajectories.trajectory_duration()
+        self.status, self.t0 = FDStatus.GUIDING, time.time()
+        self.show_t, self.speed_s = 0., self.speed_target  # start fresh
  
+    def transit_shortfalls(self):
+        """How far each drone still is from its scenario start, in metres.
+        once everyone is within TRANSIT_ARRIVE, and None while any drone is
+        still on an intermediate leg -- climbing to its layer, or parked
+        waiting its turn. Starting the show then would not mean "a drone is a
+        little short": it would mean a drone metres above or away from where
+        the choreography expects it, so the caller must not offer to force."""
+        t = getattr(self, '_transit', None)
+        if t is None:
+            return {}
+        out = {}
+        for i in self.ids:
+            tgt = np.asarray(t['targets'][i], dtype=float)
+            here = np.asarray(self._transit_waypoint(i), dtype=float)
+            if np.linalg.norm(here - tgt) > 1e-6:
+                return None            # still heading somewhere else
+            d = float(np.linalg.norm(np.asarray(self.acs[i].T[:3, 3], dtype=float) - tgt))
+            if d >= TRANSIT_ARRIVE:
+                out[i] = d
+        return out
+    
     def _transit_send(self):
         for i in self.ids:
             self.acs[i].goto_point(self._transit_waypoint(i))
@@ -744,6 +782,34 @@ class Application(QApplication):
         self.operator_view.button_stop.setEnabled(False)
         self.operator_view.set_preflight_enabled(True)
 
+    def _offer_start_anyway(self, short):
+        """Offer to start the show with drones still short of their starts.
+        Only ever reached while every drone is on its final approach, so the
+        error is the distance shown and nothing more. Declining waits another
+        TRANSIT_WAIT_WARN and asks again, rather than going quiet."""
+        detail = '\n'.join(f'    drone {i} : {d:.2f} m'
+                           for i, d in sorted(short.items()))
+        box = QMessageBox(self.operator_view)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Lancer le show quand même ?")
+        box.setText(f"{len(short)} drone(s) ne sont pas arrivés à leur point de "
+                    f"départ après {int(TRANSIT_WAIT_WARN)} s.")
+        box.setInformativeText(
+            f"Distance restante :\n{detail}\n\n"
+            "Lancer maintenant fait démarrer chacun avec cette erreur de "
+            "position, qu'il rattrape sur les premiers mouvements. Voulez-vous continuer? ")
+        box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(QMessageBox.No)
+        if box.exec() == QMessageBox.Yes:
+            self.operator_view.log_text(
+                'show started with drones short of their starts: '
+                + ', '.join(f'{i} ({d:.2f} m)' for i, d in sorted(short.items())))
+            self.fd.begin_show()
+        else:
+            self.operator_view.log_text('start declined, still waiting')
+            self.fd.t_ready0 = time.time()   # ask again in another window
+            self._ready_asked = False
+
     def on_kill_clicked(self, ac_id):
         drone = self.fd.acs.get(ac_id) or self.fd.drone_pool.get(ac_id)
         if drone is None:
@@ -913,6 +979,35 @@ class Application(QApplication):
 
         # drive the PREPARE staging sequence (motors -> takeoff)
         self._advance_prepare()
+
+        # A drone that will not settle within TRANSIT_ARRIVE holds the show
+        # back with nothing on screen to say so. Name it and say how short it
+        # is, then let the operator start from where the drones are -- but
+        # only while every one of them is already on its final approach.
+        if self.fd.status == FDStatus.GETTING_READY:
+            short = self.fd.transit_shortfalls()
+            # say it once, then only when it actually changes: a drone stuck
+            # at the same distance produces one line, not one every tick
+            if short:
+                prev = getattr(self, '_ready_last', None)
+                moved = (prev is None or set(prev) != set(short)
+                         or any(abs(short[i] - prev[i]) > 0.2 for i in short))
+                if moved and (now - getattr(self, '_ready_log_t', 0.)) > 2.:
+                    self._ready_log_t, self._ready_last = now, dict(short)
+                    self.operator_view.log_text(
+                        'waiting on ' + ', '.join(f'drone {i} ({d:.2f} m short)'
+                                                  for i, d in sorted(short.items())))
+            else:
+                self._ready_last = None
+            t_ready = self.fd.t_ready0
+            if (short and t_ready is not None
+                    and (now - t_ready) > TRANSIT_WAIT_WARN
+                    and not getattr(self, '_ready_asked', False)):
+                self._ready_asked = True
+                self._offer_start_anyway(short)
+        else:
+            self._ready_asked = False
+            self._ready_last = None
 
         # takeoff -> standby, in two steps so the guided goto isn't dropped:
         #   airborne: wait until every drone is actually airborne, then
