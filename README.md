@@ -44,8 +44,7 @@ sudo apt install python3 python3-venv python3-pip
 ```
 
 **2. La bibliothèque pat.** Elle n'est pas sur PyPI : on la clone, et on
-déclarera son chemin à l'étape 4. L'emplacement est libre, `~/work/pat` est
-la convention du laboratoire :
+déclarera son chemin à l'étape 4. L'emplacement est libre:
 
 ```bash
 mkdir -p ~/Projects && git clone https://github.com/poine/pat.git ~/Projects/pat
@@ -125,6 +124,12 @@ fenêtre d'erreur apparaît, et le journal complet est dans :
 
 ```bash
 tail -30 ~/.cache/clicknfly.log
+```
+
+
+Pour pouvoir lancer depuis n'importe quel terminal, 
+```
+echo '[ -f "$HOME/.config/clicknfly.env" ] && . "$HOME/.config/clicknfly.env"' >> ~/.bashrc
 ```
 
 ## Avant un vol en volière
