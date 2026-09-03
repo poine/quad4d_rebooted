@@ -1,1 +1,18 @@
-pyyaml numpy scipy matplotlib pyside6 numpy_stl pyqtgraph pyopengl ivy-python lxml
+# Click'n Fly dependencies: pip install -r requirements.txt
+#
+# The README spells this same list out as a plain pip command, so the two are
+# meant to match: change one, change the other.
+#
+# pat and Paparazzi are NOT here: neither is on PyPI, both are cloned and
+# reached through PYTHONPATH instead. See the README.
+
+pyyaml
+numpy
+scipy
+matplotlib
+pyside6
+numpy-stl
+pyqtgraph
+pyopengl
+ivy-python
+lxml
