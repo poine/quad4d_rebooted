@@ -68,13 +68,6 @@ python3 -m venv ~/venv_quad4d
 source ~/venv_quad4d/bin/activate
 pip install -r src/qt_gui/requirements.txt
 ```
-
-If `pip` fails with `[Errno 101] Network is unreachable`, the machine cannot
-reach PyPI. The clone in step 2 may well have succeeded regardless: it goes over
-SSH while `pip` goes over HTTPS, and the two are not filtered alike. Look for a
-proxy with `env | grep -i proxy`, and if there is one, add
-`--proxy http://PROXY:PORT` to the `pip` command.
-
 **4. The paths to pat and Paparazzi.** A launch from the desktop icon does not
 read your `~/.bashrc`, so `PYTHONPATH` has to be declared in a file of its own,
 `~/.config/clicknfly.env`, which the launcher loads on every start.
