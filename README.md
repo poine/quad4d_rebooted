@@ -107,8 +107,24 @@ Par l'icône, ou en console :
 
 ```bash
 source ~/venv_quad4d/bin/activate
-cd src/qt_gui && ./click_n_fly.py
+cd chemin/vers/Quad4d_rebooted/src/qt_gui && ./click_n_fly.py
 ```
+Le venv et le `PYTHONPATH` sont des propriétés **du terminal**, pas de la
+machine : ils disparaissent quand on le ferme, et un terminal neuf n'en sait
+rien. C'est pourquoi l'icône fonctionne alors qu'un `./click_n_fly.py` lancé
+dans une fenêtre fraîche échoue sur `ModuleNotFoundError: pat3` — les deux
+chemins de lancement ne préparent pas le même environnement.
+
+Pour ne plus avoir à y penser en console, faites charger les chemins par
+chaque nouveau terminal, une fois pour toutes :
+
+```bash
+echo '[ -f "$HOME/.config/clicknfly.env" ] && . "$HOME/.config/clicknfly.env"' >> ~/.bashrc
+```
+
+Le venv, lui, reste à activer à la main : on ne veut pas qu'il s'impose à tous
+les shells de la machine.
+
 
 Options utiles :
 
@@ -126,11 +142,6 @@ fenêtre d'erreur apparaît, et le journal complet est dans :
 tail -30 ~/.cache/clicknfly.log
 ```
 
-
-Pour pouvoir lancer depuis n'importe quel terminal, 
-```
-echo '[ -f "$HOME/.config/clicknfly.env" ] && . "$HOME/.config/clicknfly.env"' >> ~/.bashrc
-```
 
 ## Avant un vol en volière
 
@@ -161,7 +172,7 @@ l'autopilote. Changer un seuil ne demande donc aucune modification du logiciel.
 | `src/qt_gui/data/` | scénarios composés par l'opérateur, propres à la machine |
 | `docs/concept_operationnel.md` | le concept d'opérations |
 | `docs/trajectories.md` | les trajectoires |
-| `docs/TODO.md` | les chantiers ouverts |
+
 
 Les fichiers de `src/qt_gui/data/` sont exclus du suivi de version : ils sont
 locaux à chaque installation. Un nouveau clone démarre donc sans les scénarios
