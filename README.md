@@ -66,8 +66,20 @@ default:
 ```bash
 python3 -m venv ~/venv_quad4d
 source ~/venv_quad4d/bin/activate
+pip install pyyaml numpy scipy matplotlib pyside6 numpy-stl pyqtgraph pyopengl ivy-python lxml
+```
+
+The same list sits in `src/qt_gui/requirements.txt`, so this does the same
+thing if you prefer it:
+
+```bash
 pip install -r src/qt_gui/requirements.txt
 ```
+
+Neither pulls in pat or Paparazzi: neither is on PyPI, and step 4 reaches them
+through `PYTHONPATH` instead.
+
+
 **4. The paths to pat and Paparazzi.** A launch from the desktop icon does not
 read your `~/.bashrc`, so `PYTHONPATH` has to be declared in a file of its own,
 `~/.config/clicknfly.env`, which the launcher loads on every start.
