@@ -194,6 +194,8 @@ scenarios = [
 
 # Split the predefined scenarios into two groups for the picker
 _WITH_CONFLICT = [
+    Scenario2,    
+    Scenario3,    
     Scenario4,    # two back-and-forth (head-on)
     Scenario8,    # two figure-of-eight, same height (cross at centre)
     Scenario18,   # three-way convergence
