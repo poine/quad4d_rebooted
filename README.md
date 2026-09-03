@@ -1,184 +1,203 @@
-# quad4d_rebooted - Click'n Fly
+# quad4d_rebooted — Click'n Fly
 
-Click'nFly is a trajectory editor/generator and a flight director for quadrotor drones.
+Click'n Fly is a trajectory editor/generator and a flight director for quadrotor
+drones. It is intended as a tool for drone demonstrations in ENAC's indoor
+flight arena, but might fit other applications. It is written in Python, with
+the graphical user interface leveraging Qt.
 
-It is intended as a tool for drone demonstrations in ENAC's indoor flight arena but might fit other applications.
-It is for now writen in Python, with the Graphical User Interface leveraging PyQT.
+It generates choreographed trajectories for several quadrotors, deconflicts them
+before the flight, and flies them from a single interface: preparing, launching,
+following and stopping a show without touching a command line.
 
+It builds on the [Paparazzi](https://github.com/paparazzi/paparazzi) autopilot
+for the flight itself and on the [pat](https://github.com/poine/pat) library for
+the trajectories. Drone positions come from the arena's motion capture system,
+not from GPS.
 
-Application de conduite de shows de drones en volière. Elle génère des
-trajectoires chorégraphiées pour plusieurs quadrirotors, les déconflicte avant
-le vol, et les fait voler depuis une interface unique : préparer, lancer,
-suivre et arrêter le show sans passer par la ligne de commande.
+Project documentation is [here](https://poine.github.io/quad4d_rebooted).
 
-Elle s'appuie sur l'autopilote [Paparazzi](https://github.com/paparazzi/paparazzi)
-pour le vol et sur la bibliothèque [pat](https://github.com/poine/pat) pour les
-trajectoires. La position des drones vient du système de capture de mouvement
-de la volière, pas du GPS.
+## Requirements
 
-## Prérequis
+Three things, installed separately — this repository holds the application only:
 
-Trois choses, à installer séparément — ce dépôt ne contient que l'application :
-
-| | où le prendre |
+| | where to get it |
 |---|---|
-| Python 3.10 ou plus | le gestionnaire de paquets du système |
-| `pat`, le module `pat3` | <https://github.com/poine/pat> |
-| Paparazzi, avec `sw/lib/python` | <https://github.com/paparazzi/paparazzi> |
+| Python 3.10 or later | your system package manager |
+| `pat`, providing the `pat3` module | <https://github.com/poine/pat> |
+| Paparazzi, with `sw/lib/python` | <https://github.com/paparazzi/paparazzi> |
 
-Il faut également une volière équipée OptiTrack, diffusant des messages
-`EXTERNAL_POSE`.
+You also need an arena equipped with OptiTrack, broadcasting `EXTERNAL_POSE`
+messages.
 
 ## Installation
 
-**1. Python.** Vérifiez d'abord ce que vous avez :
+**1. Python.** Check what you have first:
 
 ```bash
 python3 --version
 ```
 
-S'il manque, ou s'il est antérieur à 3.10, sur Debian ou Ubuntu :
+If it is missing, or older than 3.10, on Debian or Ubuntu:
 
 ```bash
 sudo apt install python3 python3-venv python3-pip
 ```
 
-**2. La bibliothèque pat.** Elle n'est pas sur PyPI : on la clone, et on
-déclarera son chemin à l'étape 4. L'emplacement est libre:
+**2. The pat library.** It is not on PyPI, so clone it; its path is declared in
+step 4. The location is up to you:
 
 ```bash
 mkdir -p ~/Projects && git clone https://github.com/poine/pat.git ~/Projects/pat
 ```
 
-Attention au nom : le dépôt s'appelle `pat`, le module Python `pat3`. Et ce
-n'est pas le même dépôt que celui de cette application, bien que tous deux
-soient de Antoine Drouin.
+Two things to watch here:
 
-**3. L'environnement Python.** Le lanceur cherche `~/venv_quad4d` par défaut :
+- the repository is named `pat`, the Python module `pat3`;
+- **the module lives under `src/`, not at the root.** It is therefore `pat/src`
+  that goes into `PYTHONPATH`; point at the clone root and the import fails on a
+  perfectly good checkout.
+
+It is also not the same repository as this application, though both are Antoine
+Drouin's.
+
+**3. The Python environment.** The launcher looks for `~/venv_quad4d` by
+default:
 
 ```bash
 python3 -m venv ~/venv_quad4d
 source ~/venv_quad4d/bin/activate
-pip install pyyaml numpy scipy matplotlib pyside6 numpy_stl pyqtgraph pyopengl ivy-python lxml
+pip install -r src/qt_gui/requirements.txt
 ```
 
-**4. Les chemins vers pat et Paparazzi.** Un lancement par icône ne lit pas
-votre `~/.bashrc` : le `PYTHONPATH` doit donc être déclaré dans un fichier
-dédié, `~/.config/clicknfly.env`, que le lanceur charge à chaque démarrage.
+If `pip` fails with `[Errno 101] Network is unreachable`, the machine cannot
+reach PyPI. The clone in step 2 may well have succeeded regardless: it goes over
+SSH while `pip` goes over HTTPS, and the two are not filtered alike. Look for a
+proxy with `env | grep -i proxy`, and if there is one, add
+`--proxy http://PROXY:PORT` to the `pip` command.
+
+**4. The paths to pat and Paparazzi.** A launch from the desktop icon does not
+read your `~/.bashrc`, so `PYTHONPATH` has to be declared in a file of its own,
+`~/.config/clicknfly.env`, which the launcher loads on every start.
 
 ```bash
 mkdir -p ~/.config
 cat > ~/.config/clicknfly.env <<'EOF'
 export PYTHONPATH="$PYTHONPATH:$HOME/Projects/pat/src"
-export PYTHONPATH="$PYTHONPATH:/chemin/vers/paparazzi/sw/lib/python"
-export PAPARAZZI_HOME="/chemin/vers/paparazzi"
+export PYTHONPATH="$PYTHONPATH:/path/to/paparazzi/sw/lib/python"
+export PAPARAZZI_HOME="/path/to/paparazzi"
 EOF
 ```
 
-La première ligne suppose le clone de l'étape 2 ; adaptez-la si vous l'avez mis
-ailleurs, et remplacez le chemin de Paparazzi par le vôtre. C'est l'erreur la
-plus fréquente au premier lancement : sans ces chemins, l'application s'arrête
-sur un `ModuleNotFoundError: pat3`.
+The first line assumes the clone from step 2; adapt it if you put it elsewhere,
+and replace the Paparazzi path with your own. This is the most common first-run
+mistake: without these paths the application stops on
+`ModuleNotFoundError: pat3`.
 
-Pour vérifier, sans quitter le venv :
+To check, without leaving the venv:
 
 ```bash
 source ~/.config/clicknfly.env && python3 -c "import pat3; print(pat3.__file__)"
 ```
 
-**5. L'icône de bureau.** Une seule commande, à lancer depuis la racine du
-dépôt :
+A word on `cat > ... <<'EOF'` blocks: pasted in one go into a terminal, they
+sometimes collapse onto a single line and produce an unusable file, or a
+`cat: export: No such file or directory`. If that happens, write the file with
+an editor (`nano ~/.config/clicknfly.env`) rather than fighting the clipboard.
+
+**5. The desktop icon.** One command, from the root of the repository:
 
 ```bash
 ./install_launcher.sh
 ```
 
-Elle écrit `~/.local/share/applications/clicknfly.desktop` avec des chemins
-absolus résolus depuis l'emplacement du dépôt. « Click'n Fly » apparaît alors
-dans le menu des applications, et peut être épinglé.
+It writes `~/.local/share/applications/clicknfly.desktop` with absolute paths
+resolved from the repository's own location. "Click'n Fly" then appears in the
+applications menu, and can be pinned.
 
-Le script résout tout seul le chemin du dépôt : si vous le lancez depuis un
-autre clone, l'icône bascule vers celui-là. Il n'existe qu'une entrée de bureau,
-la précédente est remplacée.
+The script resolves the repository path by itself: run it from another clone and
+the icon switches to that one. There is only ever one desktop entry, and the
+previous one is replaced.
 
-## Lancer
+**6. Verify.** Close the terminal, open a fresh one, and launch from the icon.
+It has to start in a terminal that prepared nothing — that is the only test that
+proves the installation stands on its own.
 
-Par l'icône, ou en console :
+## Running
+
+**From the icon**, which is the operating procedure. The launcher activates the
+venv and loads `clicknfly.env` itself, on every start: nothing to type, nothing
+to prepare.
+
+**From a console**, you have to provide yourself what the launcher does on its
+own:
 
 ```bash
 source ~/venv_quad4d/bin/activate
-cd chemin/vers/Quad4d_rebooted/src/qt_gui && ./click_n_fly.py
+cd path/to/quad4d_rebooted/src/qt_gui && ./click_n_fly.py
 ```
-Le venv et le `PYTHONPATH` sont des propriétés **du terminal**, pas de la
-machine : ils disparaissent quand on le ferme, et un terminal neuf n'en sait
-rien. C'est pourquoi l'icône fonctionne alors qu'un `./click_n_fly.py` lancé
-dans une fenêtre fraîche échoue sur `ModuleNotFoundError: pat3` — les deux
-chemins de lancement ne préparent pas le même environnement.
 
-Pour ne plus avoir à y penser en console, faites charger les chemins par
-chaque nouveau terminal, une fois pour toutes :
+The venv and `PYTHONPATH` belong to **the terminal**, not to the machine: they
+vanish when it closes, and a fresh terminal knows nothing of them. That is why
+the icon works while a `./click_n_fly.py` typed in a new window fails on
+`ModuleNotFoundError: pat3` — the two launch paths do not prepare the same
+environment.
+
+To stop thinking about it in a console, have every new terminal load the paths,
+once and for all:
 
 ```bash
 echo '[ -f "$HOME/.config/clicknfly.env" ] && . "$HOME/.config/clicknfly.env"' >> ~/.bashrc
 ```
 
-Le venv, lui, reste à activer à la main : on ne veut pas qu'il s'impose à tous
-les shells de la machine.
+The venv stays a manual step on purpose: it has no business imposing itself on
+every shell of the machine.
 
+Useful options:
 
-Options utiles :
-
-| option | effet |
+| option | effect |
 |---|---|
-| `-v`, `--verbose` | détail de développement : mode de transit retenu, étagement, ordonnancement |
-| `--scen NOM` | démarrer directement sur un scénario |
+| `-v`, `--verbose` | developer detail: transit mode chosen, layering, scheduling |
+| `--scen NAME` | start directly on a scenario |
 
-Sans `-v`, le journal reste à l'essentiel : avertissements et étapes clés.
+Without `-v` the log stays to the point: warnings and the few key events.
 
-**Un lancement par icône n'a pas de terminal où écrire.** En cas d'échec, une
-fenêtre d'erreur apparaît, et le journal complet est dans :
+**A launch from the icon has no terminal to write to.** On failure an error
+window appears, and the full log is in:
 
 ```bash
 tail -30 ~/.cache/clicknfly.log
 ```
 
+## Before flying in the arena
 
-## Avant un vol en volière
+Three things decide whether a demonstration flies at all, and the application
+detects none of them:
 
-Trois points conditionnent une démonstration, et aucun n'est détecté par
-l'application :
+- **Telemetry has to be the lightened configuration.** With the default one, the
+  volume of messages the drones emit saturates the link at the expense of the
+  motion capture positions, and commands stop getting through reliably.
+- **Each drone must be paired with its own radio transmitter.** It is a safety
+  requirement: without it, the drone will not fly.
+- **Each drone must carry firmware that accepts the guided mode**, otherwise it
+  stays in NAV. Reprogram the autopilot if needed.
 
-- **La configuration de télémétrie doit être allégée.** Avec la configuration
-  par défaut, le volume de messages émis par les drones sature la liaison au
-  détriment des positions issues de la capture de mouvement, et les commandes
-  ne passent plus correctement.
-- **Chaque drone doit être appairé à sa propre radiocommande.** C'est une
-  exigence de sécurité : sans elle, le drone ne vole pas.
-- **Chaque drone doit embarquer le bon firmware** pour accepter le mode guidé,
-  faute de quoi il reste en mode NAV. Le cas échéant, reprogrammer l'autopilote.
+Battery thresholds are not in the code: they are read from the `BAT` section of
+each drone's `airframe` file, the very one the autopilot flies with. Changing a
+threshold therefore needs no software change.
 
-Les seuils de batterie ne sont pas dans le code : ils sont lus dans la section
-`BAT` du fichier `airframe` de chaque drone, celui-là même qu'utilise
-l'autopilote. Changer un seuil ne demande donc aucune modification du logiciel.
+## Where to find what
 
-## Où trouver quoi
-
-| chemin | contenu |
+| path | contents |
 |---|---|
-| `src/qt_gui/click_n_fly.py` | l'application |
-| `src/qt_gui/traj_factory.py` | les figures |
-| `src/qt_gui/scenarios.py` | les scénarios prédéfinis |
-| `src/qt_gui/spatial_deconfliction.py` | la déconfliction par ordonnancement |
-| `src/qt_gui/data/` | scénarios composés par l'opérateur, propres à la machine |
-| `docs/concept_operationnel.md` | le concept d'opérations |
-| `docs/trajectories.md` | les trajectoires |
+| `src/qt_gui/click_n_fly.py` | the application |
+| `src/qt_gui/traj_factory.py` | the figures |
+| `src/qt_gui/scenarios.py` | the predefined scenarios |
+| `src/qt_gui/spatial_deconfliction.py` | deconfliction by path scheduling |
+| `src/qt_gui/data/` | operator-composed scenarios, local to each machine |
+| `docs/concept_operationnel.md` | the operations concept |
+| `docs/trajectories.md` | the trajectories |
 
 
-Les fichiers de `src/qt_gui/data/` sont exclus du suivi de version : ils sont
-locaux à chaque installation. Un nouveau clone démarre donc sans les scénarios
-personnalisés du précédent.
-
-
-trajectoires et guidage 3D+t pour quadrirotors
-
-doc is [here](https://poine.github.io/quad4d_rebooted).
+The files under `src/qt_gui/data/` are excluded from version control: they are
+local to each installation. A fresh clone therefore starts without the previous
+one's custom scenarios.
