@@ -3,12 +3,12 @@
 
 ## 1. Contexte et mission
 
-Quad4D fait voler plusieurs drones en même temps dans la volière de l'ENAC, pour
+Quad4D_rebooted fait voler plusieurs drones en même temps dans la volière de l'ENAC, pour
 des shows chorégraphiés en intérieur. Les drones tournent sous Paparazzi et ne se
 localisent pas par GPS : leur position vient du système de capture de mouvement
 OptiTrack, injectée dans chaque drone par la liaison de données.
 
-L'IHM Quad4D (Click'n Fly) est l'outil de l'opérateur pendant le show : elle
+L'IHM Quad4D-rebooted (Click'n Fly) est l'outil de l'opérateur pendant le show : elle
 permet de choisir un scénario prédéfini ou d'en composer un à partir de la
 bibliothèque de trajectoires, de suivre les drones en 3D et sur la télémétrie
 live, et de conduire l'ensemble du vol.
@@ -20,7 +20,7 @@ vol doit être faisable sans quitter des yeux ce qui se passe derrière le filet
 
 ## 2. Séquence nominale
 
-Depuis août 2026, la conduite du vol tient dans l'IHM. Le Paparazzi Center sert
+La conduite du vol tient maintenant dans l'IHM. Le Paparazzi Center sert
 encore à lancer la session, et le GCS reste ouvert en secours, mais l'opérateur
 n'a plus à y revenir en fonctionnement normal.
 
@@ -117,7 +117,7 @@ Ce qui n'est pas fait, par ordre d'intérêt décroissant.
 - **Deux sources de position, mais une bascule définitive.** L'application sait
   se positionner de deux façons : la mocap (`EXTERNAL_POSE`) et l'estimation de
   l'autopilote lui-même (`ROTORCRAFT_FP`). Un drone qui n'a jamais reçu de pose
-  OptiTrack vole sur sa télémétrie — c'est ce qui permet de faire voler un drone
+  OptiTrack vole sur sa télémétrie; c'est ce qui permet de faire voler un drone
   simulé, seul ou aux côtés d'un drone réel. Mais dès qu'un drone a reçu **une
   seule** position OptiTrack, il ignore sa télémétrie pour le reste de la
   session. Si la mocap décroche en vol, **la position affichée se fige
@@ -126,7 +126,7 @@ Ce qui n'est pas fait, par ordre d'intérêt décroissant.
   limite la plus sérieuse du système actuel, et le premier chantier à reprendre.
 - **Règle batterie.** Les seuils ne sont pas dans le code : ils sont lus dans la
   section `BAT` du fichier `airframe` de chaque drone, celui-là même qu'utilise
-  l'autopilote — l'IHM et le drone ne peuvent donc pas diverger sur ce qu'est
+  l'autopilote, l'IHM et le drone ne peuvent donc pas diverger sur ce qu'est
   une batterie basse. L'affichage se fait **par cellule**, ce qui reste lisible
   quel que soit le nombre d'éléments du pack. Sous le seuil bas, l'IHM **demande
   confirmation** plutôt que d'interdire : refuser un vol d'une minute pour
@@ -142,7 +142,7 @@ Ce qui n'est pas fait, par ordre d'intérêt décroissant.
 - **Pas d'évitement réactif.** Un évitement par champ de potentiel a été
   développé et essayé en simulation, sur le show comme sur les transits. Il
   produisait des rapprochements dangereux et des blocages, et il a été
-  **écarté**, pas seulement débrayé. La sécurité repose sur des méthodes
+  **écarté**. La sécurité repose sur des méthodes
   calculées avant le vol, prévisibles et validables en simulation.
 - **La déconfliction sur le chemin a une limite connue.** Quand un drone doit
   stationner à un endroit que traverse un autre, aucune loi horaire ne les
@@ -156,5 +156,4 @@ Ce qui n'est pas fait, par ordre d'intérêt décroissant.
   une chorégraphie à plusieurs drones dans un espace confiné.
 - **Le GCS reste le secours.** L'IHM a repris les commandes courantes mais n'a
   rien supprimé : en cas de doute ou de panne, le GCS garde tous ses moyens.
-- Les chiffres d'enveloppe (dimensions utiles de la volière, nombre maximal de
-  drones simultanés, autonomie typique en vol) restent à reporter ici.
+
