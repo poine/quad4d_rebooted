@@ -156,4 +156,5 @@ Ce qui n'est pas fait, par ordre d'intérêt décroissant.
   une chorégraphie à plusieurs drones dans un espace confiné.
 - **Le GCS reste le secours.** L'IHM a repris les commandes courantes mais n'a
   rien supprimé : en cas de doute ou de panne, le GCS garde tous ses moyens.
-
+- **Vols effectués.** Les sessions de ce stage ont fait voler jusqu'à 3 drones ensemble en simulation,
+  et 2 drones réels simultanément; un troisième était prévu mais indisponible.
