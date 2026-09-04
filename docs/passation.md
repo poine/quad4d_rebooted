@@ -100,7 +100,6 @@ géométrie peut résoudre ce cas, et c'est pourquoi l'étagement existe.
   `_offer_start_anyway`) : quand un drone n'atteint pas son point de départ,
   l'IHM le nomme puis propose, au bout de 15 s, de lancer quand même. 
 - **Le nombre maximal de drones simultanés** : Je n'ai pu faire voler que 2 drones simultanément contre 3 prévus par manque de disponibilité du 3e et par manque de temps.
-- **Les dimensions utiles de la volière et l'autonomie typique** : [à compléter].
 
 ## Couplages non évidents
 
